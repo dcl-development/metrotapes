@@ -3,6 +3,7 @@ import * as THREE from 'three'
 import { TRACK_W, TRACK_X0, TRACK_Y, resolvePov } from './space'
 import { useFrame, useLoader, useThree } from '@react-three/fiber'
 import { useLayoutEffect, useMemo, useRef } from 'react'
+import { useGfx } from '../lib/useGfx'
 
 /** Cheap NYC platform litter — scribbled notes, receipts, crumpled bags. */
 function mulberry32(seed) {
@@ -143,7 +144,34 @@ function createNotchedCardGeometry() {
   return geo
 }
 
-function MetroCardBody({ texture, lit = false }) {
+/** Rest pose is `base`. A small bow along the long edge; the notch stays a hole. */
+function writeCardBend(geometry, base, amount) {
+  const arr = geometry.attributes.position.array
+  const hw = TRASH_CARD.size[0] * 0.5
+  const hh = TRASH_CARD.size[1] * 0.5
+  for (let i = 0; i < arr.length; i += 3) {
+    const x = base[i]
+    const y = base[i + 1]
+    const along = x / hw
+    const across = y / hh
+    const bow = (1 - along * along) * (1 - 0.28 * across * across)
+    arr[i] = x
+    arr[i + 1] = y
+    arr[i + 2] = base[i + 2] + bow * amount
+  }
+  geometry.attributes.position.needsUpdate = true
+  geometry.computeVertexNormals()
+  geometry.computeBoundingSphere()
+}
+
+function restoreCardBend(geometry, base) {
+  geometry.attributes.position.array.set(base)
+  geometry.attributes.position.needsUpdate = true
+  geometry.computeVertexNormals()
+  geometry.computeBoundingSphere()
+}
+
+function MetroCardBody({ texture, lit = false, meshRef }) {
   const geometry = useMemo(() => createNotchedCardGeometry(), [])
   const materials = useMemo(() => ([
     new THREE.MeshStandardMaterial({
@@ -168,17 +196,20 @@ function MetroCardBody({ texture, lit = false }) {
     geometry.dispose()
     materials.forEach((m) => m.dispose())
   }, [geometry, materials])
-  return <mesh geometry={geometry} material={materials} />
+  return <mesh ref={meshRef} geometry={geometry} material={materials} />
 }
 
 /**
- * Intro: one continuous MetroCard flight onto the trash (no wait→fly snap).
- * Card outruns the camera so it stays in frame; intro ends only after both settle.
- * Flutter is cheap trig only (phone-safe), not a physics sim.
+ * Intro: a thrown-card flick, then the same fall onto the trash.
+ * The flick is a few turns around the long axis under a close camera.
+ * It eases out into the original dive. Bend is a vertex bow, skipped on low.
  */
 export function WindCard({ ready, onCameraHome, reducedMotion, driveCamera = true }) {
   const group = useRef()
+  const meshRef = useRef(null)
+  const basePos = useRef(null)
   const { camera } = useThree()
+  const { tier } = useGfx()
   const texture = useLoader(THREE.TextureLoader, '/metrocard.png')
   texture.colorSpace = THREE.SRGBColorSpace
   texture.anisotropy = 4
@@ -189,10 +220,15 @@ export function WindCard({ ready, onCameraHome, reducedMotion, driveCamera = tru
     camHome: false,
     cardLanded: false,
     finished: false,
+    bent: false,
   })
 
   const FLY_SCALE = 3.6
   const LAND_SCALE = 1
+  const HERO_SCALE = 1.55
+  /** Fast tumble, then the original fall. Integer turns so the pose matches. */
+  const FLICK = 1.05
+  const SPIN_TURNS = 3
   /** Card flies faster than the camera pull so it stays in POV */
   const CAM_DUR = 3.35
   const CARD_DUR = 2.45
@@ -217,6 +253,8 @@ export function WindCard({ ready, onCameraHome, reducedMotion, driveCamera = tru
     }
   }, [])
   const tmpPos = useMemo(() => new THREE.Vector3(), [])
+  const heroPos = useMemo(() => new THREE.Vector3(), [])
+  const camPos = useMemo(() => new THREE.Vector3(), [])
   const tmpLook = useMemo(() => new THREE.Vector3(), [])
   const tmpEuler = useMemo(() => new THREE.Euler(), [])
 
@@ -234,6 +272,10 @@ export function WindCard({ ready, onCameraHome, reducedMotion, driveCamera = tru
       camHome: false,
       cardLanded: false,
       finished: false,
+      bent: false,
+    }
+    if (basePos.current && meshRef.current) {
+      restoreCardBend(meshRef.current.geometry, basePos.current)
     }
     camera.position.copy(CAM_START.pos)
     camera.fov = CAM_START.fov
@@ -258,7 +300,14 @@ export function WindCard({ ready, onCameraHome, reducedMotion, driveCamera = tru
       camera.updateProjectionMatrix()
     }
 
+    const flatten = () => {
+      if (!s.bent || !basePos.current || !meshRef.current) return
+      restoreCardBend(meshRef.current.geometry, basePos.current)
+      s.bent = false
+    }
+
     if (reducedMotion) {
+      flatten()
       if (!ready || s.finished) {
         if (!s.cardLanded) {
           g.position.copy(LAND)
@@ -283,12 +332,18 @@ export function WindCard({ ready, onCameraHome, reducedMotion, driveCamera = tru
     s.life += d
     if (ready && !s.finished) s.age += d
 
-    const u = Math.min(1, s.age / CARD_DUR)
+    // Flick first. The fall clock starts only after those turns are done,
+    // so the original dive keeps its timing.
+    const spinU = Math.min(1, s.age / FLICK)
+    const settle = smooth(spinU)
+    const fallAge = Math.max(0, s.age - FLICK)
+    const u = Math.min(1, fallAge / CARD_DUR)
     // Brief close-up, then a quicker dive so the card stays ahead of the camera
     const e = u < 0.28
       ? easeOut(u / 0.28) * 0.28
       : 0.28 + easeIn((u - 0.28) / 0.72) * 0.72
     const wind = (1 - e) ** 1.15
+    const sway = wind * (1 - (1 - settle) * 0.82)
     const t = s.life
 
     // Falling-paper path: arc + side-to-side / up-down flutter that dies out near the floor
@@ -298,19 +353,25 @@ export function WindCard({ ready, onCameraHome, reducedMotion, driveCamera = tru
     tmpPos.x += (Math.sin(t * 2.15) * 0.48 + Math.sin(t * 4.6) * 0.14) * wind
     tmpPos.y += Math.sin(t * 3.05) * 0.16 * wind
     tmpPos.z += (Math.cos(t * 1.75) * 0.32 + Math.sin(t * 3.8) * 0.1) * wind
-    g.position.copy(tmpPos)
+    heroPos.set(START.x, START.y + 0.04, START.z + 0.62)
+    heroPos.x += Math.sin(t * 1.15) * 0.035 * (1 - settle)
+    g.position.lerpVectors(heroPos, tmpPos, settle)
 
-    // Keep a vertical swipe bias early; wobble all axes like a sheet in air; settle flat late
+    // Keep a vertical swipe bias early; wobble all axes like a sheet in air; settle flat late.
+    // The extra X spin is the long-axis flick. It lands on a whole number of turns.
+    // Drop the extra turns once they complete so the landing lerp is not unwrapping 6π.
+    const spin = spinU >= 1 ? 0 : (1 - (1 - spinU) ** 3) * Math.PI * 2 * SPIN_TURNS
     tmpEuler.set(
       THREE.MathUtils.lerp(START_ROT.x, LAND_ROT.x, e)
-        + Math.sin(t * 2.9) * wind * 0.85
-        + Math.sin(t * 5.4) * wind * 0.22,
+        + Math.sin(t * 2.9) * sway * 0.85
+        + Math.sin(t * 5.4) * sway * 0.22
+        + spin,
       THREE.MathUtils.lerp(START_ROT.y, LAND_ROT.y, e)
-        + Math.sin(t * 1.55) * wind * 0.7
-        + Math.cos(t * 3.2) * wind * 0.35,
+        + Math.sin(t * 1.55) * sway * 0.7
+        + Math.cos(t * 3.2) * sway * 0.35,
       THREE.MathUtils.lerp(START_ROT.z, LAND_ROT.z, e)
-        + Math.cos(t * 2.4) * wind * 1.05
-        + Math.sin(t * 4.8) * wind * 0.28,
+        + Math.cos(t * 2.4) * sway * 1.05
+        + Math.sin(t * 4.8) * sway * 0.28,
     )
     if (u > 0.62) {
       const k = smooth((u - 0.62) / 0.38)
@@ -319,7 +380,7 @@ export function WindCard({ ready, onCameraHome, reducedMotion, driveCamera = tru
       tmpEuler.z = THREE.MathUtils.lerp(tmpEuler.z, LAND_ROT.z, k)
     }
     g.rotation.copy(tmpEuler)
-    g.scale.setScalar(THREE.MathUtils.lerp(FLY_SCALE, LAND_SCALE, e))
+    g.scale.setScalar(THREE.MathUtils.lerp(HERO_SCALE, THREE.MathUtils.lerp(FLY_SCALE, LAND_SCALE, e), settle))
 
     if (u >= 1 && !s.cardLanded) {
       g.position.copy(LAND)
@@ -334,23 +395,48 @@ export function WindCard({ ready, onCameraHome, reducedMotion, driveCamera = tru
       g.scale.setScalar(LAND_SCALE)
     }
 
-    // Camera: slower pull so the faster card stays in frame
+    const mesh = meshRef.current
+    if (mesh && !basePos.current) {
+      basePos.current = new Float32Array(mesh.geometry.attributes.position.array)
+    }
+    if (mesh && basePos.current) {
+      const bow = tier === 'low' || s.cardLanded
+        ? 0
+        : Math.sin(t * 2.05) * 0.012 * (0.35 + 0.65 * Math.max(wind, 1 - settle))
+      if (Math.abs(bow) > 0.001) {
+        writeCardBend(mesh.geometry, basePos.current, bow)
+        s.bent = true
+      } else if (s.bent) {
+        restoreCardBend(mesh.geometry, basePos.current)
+        s.bent = false
+      }
+    }
+
+    // Close on the flick, then the original slower pull so the card stays in frame.
     if (driveCamera && !s.camHome) {
+      const cu = Math.min(1, Math.max(0, s.age - FLICK * 0.55) / CAM_DUR)
+      const ce = smooth(cu)
+      camPos.lerpVectors(CAM_START.pos, CAM_KIOSK.pos, ce)
+      tmpLook.lerpVectors(CAM_START.look, CAM_KIOSK.look, ce)
+      if (cu < 0.55) tmpLook.lerp(g.position, (1 - cu / 0.55) * 0.65)
+      let fov = THREE.MathUtils.lerp(CAM_START.fov, CAM_KIOSK.fov, ce)
+      const close = 1 - smooth(Math.min(1, Math.max(0, (spinU - 0.5) / 0.5)))
+      if (close > 0.001) {
+        heroPos.copy(g.position)
+        heroPos.x += 0.03
+        heroPos.y += 0.14
+        heroPos.z += 1.02
+        camPos.lerp(heroPos, close)
+        tmpLook.lerp(g.position, close)
+        fov = THREE.MathUtils.lerp(fov, 22, close)
+      }
       if (!ready) {
-        tmpLook.copy(g.position)
-        setCam(CAM_START.pos, tmpLook, CAM_START.fov)
+        setCam(camPos, tmpLook, fov)
         return
       }
-      const cu = Math.min(1, s.age / CAM_DUR)
-      const ce = smooth(cu)
-      camera.position.lerpVectors(CAM_START.pos, CAM_KIOSK.pos, ce)
-      tmpLook.lerpVectors(CAM_START.look, CAM_KIOSK.look, ce)
-      // Track the card longer so it doesn't slip out of POV mid-flight
-      if (cu < 0.55) {
-        tmpLook.lerp(g.position, (1 - cu / 0.55) * 0.65)
-      }
+      camera.position.copy(camPos)
       camera.lookAt(tmpLook)
-      camera.fov = THREE.MathUtils.lerp(CAM_START.fov, CAM_KIOSK.fov, ce)
+      camera.fov = fov
       camera.updateProjectionMatrix()
       if (cu >= 1) {
         setCam(CAM_KIOSK.pos, CAM_KIOSK.look, CAM_KIOSK.fov)
@@ -361,8 +447,8 @@ export function WindCard({ ready, onCameraHome, reducedMotion, driveCamera = tru
   })
 
   return (
-    <group ref={group} position={START.toArray()} scale={FLY_SCALE} rotation={START_ROT.toArray()}>
-      <MetroCardBody texture={texture} lit />
+    <group ref={group} position={START.toArray()} scale={HERO_SCALE} rotation={START_ROT.toArray()}>
+      <MetroCardBody texture={texture} lit meshRef={meshRef} />
     </group>
   )
 }

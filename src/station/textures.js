@@ -1,8 +1,9 @@
 import * as THREE from 'three'
 import { EXIT_RED, FLOOR_W, FONT, LEN, TILE, TRACK_W, TRAIN_Z, WALL_ROWS, hash01 } from './space'
+import { useThree } from '@react-three/fiber'
 import { useLayoutEffect, useMemo } from 'react'
 
-export function makeCanvasTexture(paint, size, colorSpace) {
+export function makeCanvasTexture(paint, size, colorSpace, aniso = 4) {
   const canvas = document.createElement('canvas')
   canvas.width = canvas.height = size
   paint(canvas.getContext('2d'), size)
@@ -10,12 +11,12 @@ export function makeCanvasTexture(paint, size, colorSpace) {
   texture.colorSpace = colorSpace
   texture.wrapS = THREE.RepeatWrapping
   texture.wrapT = THREE.RepeatWrapping
-  texture.anisotropy = 4
+  texture.anisotropy = aniso
   texture.needsUpdate = true
   return texture
 }
 
-function makeColumnTexture(paint, tilePx, rows, colorSpace) {
+function makeColumnTexture(paint, tilePx, rows, colorSpace, aniso = 8) {
   const canvas = document.createElement('canvas')
   canvas.width = tilePx
   canvas.height = tilePx * rows
@@ -24,7 +25,7 @@ function makeColumnTexture(paint, tilePx, rows, colorSpace) {
   texture.colorSpace = colorSpace
   texture.wrapS = THREE.RepeatWrapping
   texture.wrapT = THREE.ClampToEdgeWrapping
-  texture.anisotropy = 8
+  texture.anisotropy = aniso
   texture.needsUpdate = true
   return texture
 }
@@ -887,49 +888,57 @@ export function paintExitSign(ctx, w, h, metalImg, arrowImg) {
 
 export const STATION_MAP_REV = 6
 
-export function useStationMaps() {
+export function useStationMaps(quality) {
+  const { gl } = useThree()
+  const mapPx = quality?.mapPx ?? 256
+  const ceilingPx = quality?.ceilingPx ?? 512
+  const columnPx = quality?.columnPx ?? 64
+  const aniso = Math.min(quality?.aniso ?? 4, gl.capabilities.getMaxAnisotropy() || 1)
   const maps = useMemo(() => {
     const wallMap = makeColumnTexture(
       (ctx, tile, rows) => paintSubwayColumn(ctx, tile, rows, 'color'),
-      64,
+      columnPx,
       WALL_ROWS,
       THREE.SRGBColorSpace,
+      aniso,
     )
     wallMap.repeat.set(LEN / TILE, 1)
 
     const wallBump = makeColumnTexture(
       (ctx, tile, rows) => paintSubwayColumn(ctx, tile, rows, 'bump'),
-      64,
+      columnPx,
       WALL_ROWS,
       THREE.NoColorSpace,
+      aniso,
     )
     wallBump.repeat.set(LEN / TILE, 1)
 
     const wallRough = makeColumnTexture(
       (ctx, tile, rows) => paintSubwayColumn(ctx, tile, rows, 'rough'),
-      64,
+      columnPx,
       WALL_ROWS,
       THREE.NoColorSpace,
+      aniso,
     )
     wallRough.repeat.set(LEN / TILE, 1)
 
-    const floorMap = makeCanvasTexture(paintConcrete, 256, THREE.SRGBColorSpace)
+    const floorMap = makeCanvasTexture(paintConcrete, mapPx, THREE.SRGBColorSpace, aniso)
     floorMap.repeat.set(FLOOR_W / 1.8, LEN / 1.8)
 
-    const ceilingMap = makeCanvasTexture(paintCeiling, 512, THREE.SRGBColorSpace)
+    const ceilingMap = makeCanvasTexture(paintCeiling, ceilingPx, THREE.SRGBColorSpace, aniso)
     ceilingMap.repeat.set(FLOOR_W / 7.2, LEN / 13)
     ceilingMap.offset.set(0.17, 0.31)
 
-    const steelMap = makeCanvasTexture(paintSteel, 256, THREE.SRGBColorSpace)
+    const steelMap = makeCanvasTexture(paintSteel, mapPx, THREE.SRGBColorSpace, aniso)
     steelMap.repeat.set(1.15, 0.9)
 
-    const riserMap = makeCanvasTexture(paintRiser, 256, THREE.SRGBColorSpace)
+    const riserMap = makeCanvasTexture(paintRiser, mapPx, THREE.SRGBColorSpace, aniso)
     riserMap.repeat.set(LEN / 4.8, 1.15)
 
-    const ballastMap = makeCanvasTexture(paintBallast, 256, THREE.SRGBColorSpace)
+    const ballastMap = makeCanvasTexture(paintBallast, mapPx, THREE.SRGBColorSpace, aniso)
     ballastMap.repeat.set(TRACK_W / 2.2, LEN / 3.4)
 
-    const yellowMap = makeCanvasTexture(paintTactile, 256, THREE.SRGBColorSpace)
+    const yellowMap = makeCanvasTexture(paintTactile, mapPx, THREE.SRGBColorSpace, aniso)
     yellowMap.repeat.set(1.1, LEN / 2.6)
 
     return {
@@ -954,7 +963,7 @@ export function useStationMaps() {
         yellowMap.dispose()
       },
     }
-  }, [])
+  }, [aniso, ceilingPx, columnPx, mapPx])
 
   useLayoutEffect(() => () => maps.dispose(), [maps])
   return maps

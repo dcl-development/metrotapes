@@ -50,8 +50,8 @@ function StationWorld({
   watchArmed = true,
 }) {
   const landscapeInvite = isLandscapeZoom(kioskZoom) && !dimmed
-  const { settings } = useGfx()
-  const maps = useStationMaps()
+  const { settings, startSettings } = useGfx()
+  const maps = useStationMaps(startSettings)
   const reducedMotion = useMemo(
     () => typeof window !== 'undefined'
       && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
@@ -163,6 +163,15 @@ export default function StationScene({
     cam: null,
     obj: { photo: null, video: null, about: null },
   })
+  // A fresh inline ref would detach and reattach every render, and bindSlot
+  // sets state, which is an update loop on wall routes.
+  const slotBinders = useRef({})
+  const binderFor = (id) => {
+    if (!slotBinders.current[id]) {
+      slotBinders.current[id] = (node) => bindSlot?.(id, node)
+    }
+    return slotBinders.current[id]
+  }
   const navigate = useNavigate()
   const location = useLocation()
   const pov = isWallPov(shot) || shot === 'kiosk' ? shot : (POVS[shot] ? shot : 'kiosk')
@@ -644,7 +653,7 @@ export default function StationScene({
                   >
                     {pov === b.id ? (
                       <div
-                        ref={(node) => bindSlot?.(b.id, node)}
+                        ref={binderFor(b.id)}
                         style={{ position: 'absolute', inset: 0 }}
                       />
                     ) : null}

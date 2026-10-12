@@ -3,6 +3,7 @@ import * as THREE from 'three'
 import { COL, EDGE_X, FLOOR_W, HEIGHT, LEN, MID_Z, PILLAR_GAP, PILLAR_N, PILLAR_X, PILLAR_Z0, PLAT_W, STAIR_N, STAIR_RISE, STAIR_RUN, STAIR_W, STAIR_X, STAIR_Z0, TILE, TRACK_Y, WALL_H, WALL_R, WALL_X, hash01 } from './space'
 import { STATION_MAP_REV, makeCanvasTexture, paintWood } from './textures'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
+import { useGfx } from '../lib/useGfx'
 import { useLayoutEffect, useMemo, useRef } from 'react'
 
 function TiledWall({ maps, x, rotY, z, len }) {
@@ -246,12 +247,14 @@ export function YellowStrip({ maps }) {
 }
 
 export function Benches() {
+  const { startSettings } = useGfx()
+  const woodPx = startSettings.woodPx ?? 512
+  const aniso = Math.max(8, startSettings.aniso ?? 8)
   const maps = useMemo(() => {
-    const wood = makeCanvasTexture(paintWood, 512, THREE.SRGBColorSpace)
-    wood.anisotropy = 8
+    const wood = makeCanvasTexture(paintWood, woodPx, THREE.SRGBColorSpace, aniso)
     wood.repeat.set(0.45, 2.2)
     return { wood }
-  }, [])
+  }, [aniso, woodPx])
 
   useLayoutEffect(() => () => {
     maps.wood.dispose()

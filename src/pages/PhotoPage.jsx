@@ -7,7 +7,8 @@ import styled from 'styled-components'
 import ImageModal from '../components/ImageModal'
 import OrnatePhotoFrame from '../components/OrnatePhotoFrame'
 import FrostNote from '../components/FrostNote'
-import { font } from '../styles/theme'
+import StationPlate from '../components/StationPlate'
+import { font, route } from '../styles/theme'
 import { photoAutoplayAllowed } from '../lib/stationFrame'
 
 const AUTO_MS = 4500
@@ -520,6 +521,7 @@ export default function PhotoPage() {
   return (
     <>
       <Panel>
+        <StationPlate letter="P" title="Photo" color={route.photo} />
         {status === 'loading' && <FrostNote>Loading photos…</FrostNote>}
         {status === 'empty' && <FrostNote>No photos yet.</FrostNote>}
         {status === 'error' && <FrostNote>Could not load photos.</FrostNote>}

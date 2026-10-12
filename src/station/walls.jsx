@@ -4,12 +4,14 @@ import { STAIR_N, STAIR_RUN, STAIR_X, STAIR_Z0, WALL_X, isWallPov } from './spac
 import { WALL_BEZEL, getWallFace } from '../lib/wallSize'
 import { applyCss3dCamera, isIOSWebKit, objectCssMatrix } from './css3d'
 import { lumaAsAlpha, makeLabelTexture, paintExitSign } from './textures'
+import { haloTexture } from './glow'
 import { makeBoardLabel, wallBoardList } from './boards'
 import { useFrame, useLoader, useThree } from '@react-three/fiber'
 import { useGfx } from '../lib/useGfx'
 import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 export function Signage({ locked = false }) {
+  const { settings } = useGfx()
   const [metal, arrowTex] = useLoader(THREE.TextureLoader, [
     '/subwaysign.jpg',
     '/subway-arrow-down.png',
@@ -127,6 +129,20 @@ export function Signage({ locked = false }) {
             <planeGeometry args={[signW - 0.02, signH - 0.016]} />
                 <meshBasicMaterial map={maps.exitMap} toneMapped={false} side={THREE.DoubleSide} />
           </mesh>
+              {settings.cheapGlow ? (
+                <mesh position={[0, 0, 0.02]} frustumCulled={false} raycast={() => null}>
+                  <planeGeometry args={[signW * 1.45, signH * 2.4]} />
+                  <meshBasicMaterial
+                    map={haloTexture()}
+                    color="#ff2a3a"
+                    transparent
+                    opacity={0.55}
+                    depthWrite={false}
+                    blending={THREE.AdditiveBlending}
+                    toneMapped={false}
+                  />
+                </mesh>
+              ) : null}
             </>
           ) : (
             <mesh frustumCulled={false}>
@@ -145,13 +161,17 @@ export function Signage({ locked = false }) {
 }
 
 export function WallBoards({ wall, wallHuds, immersed = false, immersedId = null, onSelect, invite = false, projectHtml = true, busyRef }) {
-  const { tier } = useGfx()
+  const { tier, settings, startSettings } = useGfx()
   const face = wall || getWallFace()
   const boards = wallBoardList()
-  const labels = useMemo(
-    () => Object.fromEntries(wallBoardList().map((b) => [b.id, makeBoardLabel(b.title, b.accent)])),
-    [],
-  )
+  const labels = useMemo(() => {
+    const w = startSettings.labelPx ?? 512
+    const h = Math.max(96, Math.round(w * 96 / 512))
+    const aniso = startSettings.aniso ?? 4
+    return Object.fromEntries(
+      wallBoardList().map((b) => [b.id, makeBoardLabel(b.title, b.accent, w, h, aniso)]),
+    )
+  }, [startSettings])
   const screens = useRef({})
   const glowMats = useRef({})
   const glowLights = useRef({})
@@ -182,7 +202,8 @@ export function WallBoards({ wall, wallHuds, immersed = false, immersedId = null
       : 0
     liveBoards.forEach((b) => {
       const mat = glowMats.current[b.id]
-      if (mat) mat.opacity = pulse ? 0.05 + pulse * 0.14 : 0
+      const rest = settings.cheapGlow ? 0.16 : 0
+      if (mat) mat.opacity = pulse ? Math.max(rest, 0.05 + pulse * 0.14) : rest
       const light = glowLights.current[b.id]
       if (light) light.intensity = pulse ? 0.12 + pulse * 0.28 : 0
     })
@@ -364,7 +385,7 @@ export function WallBoards({ wall, wallHuds, immersed = false, immersedId = null
               ref={(n) => { glowMats.current[b.id] = n }}
               color={b.accent}
               transparent
-              opacity={0}
+              opacity={settings.cheapGlow ? 0.16 : 0}
               depthWrite={false}
               blending={THREE.AdditiveBlending}
               toneMapped={false}

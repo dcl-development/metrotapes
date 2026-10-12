@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import styled, { css, keyframes } from 'styled-components'
 import { KIOSK_PANEL_W, KIOSK_PANEL_H, KIOSK_RADIUS_PX } from '../lib/kioskSize'
+import { primeMtaPlate } from '../lib/mtaPlate'
 import KioskScreen from './KioskScreen'
 
 const ZAP_MS = 520
@@ -98,6 +99,15 @@ export default function KioskZapScreen({
   onPhaseEnd,
 }) {
   const ended = useRef(false)
+  const [logoSrc, setLogoSrc] = useState('')
+
+  useEffect(() => {
+    let alive = true
+    primeMtaPlate()
+      .then((plate) => { if (alive) setLogoSrc(plate.blobUrl) })
+      .catch(() => { if (alive) setLogoSrc('/mta-logo.jpg') })
+    return () => { alive = false }
+  }, [])
 
   useEffect(() => {
     ended.current = false
@@ -126,7 +136,7 @@ export default function KioskZapScreen({
           onPhaseEnd?.(phase)
         }}
       >
-        <Logo src="/mta-logo.jpg" alt="MTA" width={132} height={74} />
+        {logoSrc ? <Logo src={logoSrc} alt="MTA" width={132} height={74} /> : null}
       </Cover>
     </Root>
   )

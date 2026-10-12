@@ -1,7 +1,7 @@
 /** Wall boards follow the real viewport: HTML lays out at window size, 3D frame matches that aspect. */
 
 export const WALL_BEZEL = 0.036
-export const WALL_TITLE_H = 0.12
+export const WALL_TITLE_H = 0.16
 /** Bench backrest top in world meters (seat 0.42 + armrest overlap + back 0.19). */
 export const BENCH_BACK_TOP = 0.68
 /** Keep the chrome lip a few inches above the benches. */

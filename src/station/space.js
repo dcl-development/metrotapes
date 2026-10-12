@@ -106,10 +106,12 @@ export const POVS = {
     ease: 1.35,
   },
   kioskMobile: {
-    // Portrait: smaller pullback than desktop — keep UI readable
-    position: [0.38, 1.34, -2.32],
-    lookAt: [0.38, 1.2, -4.32],
-    fov: 52,
+    // Portrait: stand close so the LCD fills the stage. CSS3D scale is
+    // projected size / panel CSS size, so a nearer shot keeps type and
+    // hit targets large enough to tap.
+    position: [0.38, 1.22, -2.64],
+    lookAt: [0.38, 1.16, -4.19],
+    fov: 48,
     ease: 1.35,
   },
   // Over the tracks, near the far wall — train + trench + rat, stairs back-left

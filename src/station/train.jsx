@@ -236,7 +236,12 @@ export function Train({ invite = false, blockClicksRef }) {
       startSettings.trainSide[0],
       startSettings.trainSide[1],
     )
-    const roof = makeCanvasTexture(paintRoofRibs, 256, THREE.SRGBColorSpace)
+    const roof = makeCanvasTexture(
+      paintRoofRibs,
+      startSettings.propPx ?? 256,
+      THREE.SRGBColorSpace,
+      startSettings.aniso ?? 4,
+    )
     roof.wrapS = THREE.RepeatWrapping
     roof.wrapT = THREE.RepeatWrapping
     roof.repeat.set(8, 1)

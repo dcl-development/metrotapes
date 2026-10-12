@@ -1,5 +1,7 @@
 /* eslint-disable react/no-unknown-property */
+import { AdditiveBlending } from 'three'
 import { COL, FLOOR_W, HEIGHT, WALL_X } from './space'
+import { tubeGlowTexture } from './glow'
 import { useFrame } from '@react-three/fiber'
 import { useGfx } from '../lib/useGfx'
 import { useMemo, useRef } from 'react'
@@ -12,7 +14,7 @@ const FIXTURE_Z0    = 2.0
 const FIXTURE_STEP  = 3.8
 
 // One cross-ceiling fluorescent row
-function CeilingFixture({ z, index, lit = true, flicker, gain = 5.4 }) {
+function CeilingFixture({ z, index, lit = true, flicker, gain = 5.4, cheapGlow = false }) {
   const tubeRef  = useRef()
   const diffuserRef = useRef()
   const lightRef = useRef()
@@ -66,6 +68,20 @@ function CeilingFixture({ z, index, lit = true, flicker, gain = 5.4 }) {
           toneMapped={false}
         />
       </mesh>
+      {cheapGlow ? (
+        <mesh position={[0, -0.2, 0.02]} raycast={() => null}>
+          <planeGeometry args={[FIXTURE_W + 0.35, 0.62]} />
+          <meshBasicMaterial
+            map={tubeGlowTexture()}
+            color={FIXTURE_COLOR}
+            transparent
+            opacity={0.92}
+            depthWrite={false}
+            blending={AdditiveBlending}
+            toneMapped={false}
+          />
+        </mesh>
+      ) : null}
       {/* Real lights only on nearer rows — bloom still sells the glow farther back */}
       {lit ? (
         <pointLight
@@ -145,6 +161,7 @@ function Fluorescents() {
           lit={i < settings.lights}
           gain={settings.tube}
           flicker={flicker}
+          cheapGlow={settings.cheapGlow}
         />
       ))}
     </group>

@@ -7,7 +7,8 @@ import styled from 'styled-components'
 import ImageModal from '../components/ImageModal'
 import OrnatePhotoFrame from '../components/OrnatePhotoFrame'
 import FrostNote from '../components/FrostNote'
-import { font } from '../styles/theme'
+import StationPlate from '../components/StationPlate'
+import { font, route } from '../styles/theme'
 import { photoAutoplayAllowed } from '../lib/stationFrame'
 
 const AUTO_MS = 4500
@@ -162,7 +163,7 @@ function FilmStrip({
     return out
   }, [photos, n])
 
-  const loopW = () => n * cellRef.current
+  const loopW = useCallback(() => n * cellRef.current, [n])
 
   const applyX = useCallback((x) => {
     const track = trackRef.current
@@ -175,7 +176,7 @@ function FilmStrip({
     }
     xRef.current = x
     track.style.transform = `translate3d(${-x}px, 0, 0)`
-  }, [n])
+  }, [loopW])
 
   const indexFromX = useCallback((x) => {
     const rail = railRef.current
@@ -194,7 +195,7 @@ function FilmStrip({
     const mid = loop * Math.floor(COPIES / 2)
     const targetCenter = mid + i * cell + cell / 2
     return targetCenter - rail.clientWidth / 2
-  }, [n])
+  }, [loopW])
 
   const reportIndex = useCallback((next) => {
     activeRef.current = next
@@ -246,7 +247,7 @@ function FilmStrip({
       }
     }
     rafRef.current = requestAnimationFrame(tick)
-  }, [applyX, xForIndex, reportIndex, n])
+  }, [applyX, loopW, reportIndex, xForIndex])
 
   useEffect(() => {
     const measure = () => {
@@ -520,6 +521,7 @@ export default function PhotoPage() {
   return (
     <>
       <Panel>
+        <StationPlate letter="P" title="Photo" color={route.photo} />
         {status === 'loading' && <FrostNote>Loading photos…</FrostNote>}
         {status === 'empty' && <FrostNote>No photos yet.</FrostNote>}
         {status === 'error' && <FrostNote>Could not load photos.</FrostNote>}

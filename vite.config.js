@@ -1,7 +1,35 @@
+import fs from 'node:fs'
+import path from 'node:path'
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react-swc'
 import { allowVideosRequest } from './server/videosGuard.js'
 import { getPlaylistConfig, loadPlaylistVideos } from './server/youtubePlaylist.js'
+import { applyRouteMeta } from './src/lib/routeMeta.js'
+
+const ROUTE_HTML = ['/photo', '/video', '/about', '/blog']
+
+function routeHtmlPlugin() {
+  return {
+    name: 'route-html',
+    transformIndexHtml: {
+      order: 'pre',
+      handler(html, ctx) {
+        const requestPath = ctx?.path || ctx?.originalUrl || '/'
+        return applyRouteMeta(html, requestPath)
+      },
+    },
+    closeBundle() {
+      const distIndex = path.resolve('dist/index.html')
+      if (!fs.existsSync(distIndex)) return
+      const home = fs.readFileSync(distIndex, 'utf8')
+      for (const route of ROUTE_HTML) {
+        const dir = path.resolve('dist', route.slice(1))
+        fs.mkdirSync(dir, { recursive: true })
+        fs.writeFileSync(path.join(dir, 'index.html'), applyRouteMeta(home, route))
+      }
+    },
+  }
+}
 
 function videosApiPlugin(env) {
   return {
@@ -41,7 +69,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
 
   return {
-    plugins: [react(), videosApiPlugin(env)],
+    plugins: [react(), videosApiPlugin(env), routeHtmlPlugin()],
     base: '/',
     server: {
       port: 5173,

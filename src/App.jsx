@@ -6,9 +6,8 @@ import Header from './components/Header'
 import BootScreen from './components/BootScreen'
 import { preloadStationAssets } from './lib/preloadStation'
 import { BOOT_LIMIT_MS } from './lib/bootGate'
-import { hasWebGL } from './lib/webglSupport'
 import FlatHome from './components/FlatHome'
-import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import styled from 'styled-components'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import Blog from './pages/Blog'
@@ -16,6 +15,10 @@ import { font, station } from './styles/theme'
 import usePageMeta from './hooks/usePageMeta'
 import { KioskLeaveProvider } from './context/KioskLeaveContext'
 import { GfxProvider } from './lib/gfxTier'
+import { PresentationProvider } from './components/PresentationProvider'
+import PageHost from './components/PageHost'
+import { usePresentation } from './lib/usePresentation'
+import { WallSlotContext } from './lib/wallSlotContext'
 
 const StationScene = lazy(() => import('./components/StationScene'))
 
@@ -152,6 +155,7 @@ const SHOT = {
 
 function AppContent() {
   const location = useLocation()
+  const { station, setContextLost } = usePresentation()
   const shotFromRoute = SHOT[location.pathname]
   const atKiosk = location.pathname === '/'
   const onBlog = location.pathname === '/blog'
@@ -167,12 +171,11 @@ function AppContent() {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return true
     return window.location.pathname !== '/'
   })
-  const [flat, setFlat] = useState(() => !hasWebGL())
-  const [assetsReady, setAssetsReady] = useState(flat)
-  const [sceneReady, setSceneReady] = useState(flat)
+  const [assetsReady, setAssetsReady] = useState(!station)
+  const [sceneReady, setSceneReady] = useState(!station)
   const [pageReady, setPageReady] = useState(false)
   const [bootLeaving, setBootLeaving] = useState(false)
-  const [bootGone, setBootGone] = useState(skipIntro || flat)
+  const [bootGone, setBootGone] = useState(skipIntro || !station)
   const booted = assetsReady && sceneReady
   const arriving = atKiosk && !entered
   const showBoot = arriving && !bootGone
@@ -190,16 +193,18 @@ function AppContent() {
       return false
     },
   }), [])
-  // Wall HTML (and its images) mounts only on that route.
-  const activeWall = !flat && onPage ? shotFromRoute : null
-  const wallPages = useMemo(() => {
-    if (!activeWall) return null
-    return {
-      photo: activeWall === 'photo' ? <PhotoPage /> : null,
-      video: activeWall === 'video' ? <VideoPage /> : null,
-      about: activeWall === 'about' ? <AboutPage /> : null,
-    }
-  }, [activeWall])
+  const slotsRef = useRef({ photo: null, video: null, about: null })
+  const [slotEpoch, setSlotEpoch] = useState(0)
+  const bindSlot = useCallback((id, node) => {
+    if (slotsRef.current[id] === node) return
+    slotsRef.current[id] = node
+    setSlotEpoch((n) => n + 1)
+  }, [])
+  const wallSlots = useMemo(() => ({
+    slotsRef,
+    epoch: slotEpoch,
+    bindSlot,
+  }), [slotEpoch, bindSlot])
   const headerRef = useRef(null)
   const [headerH, setHeaderH] = useState(64)
   usePageMeta()
@@ -229,11 +234,24 @@ function AppContent() {
     setPageReady(!onPage)
   }, [location.pathname, onPage])
 
+  const enteredRef = useRef(entered)
+  enteredRef.current = entered
+
   useEffect(() => {
-    if (flat) {
+    if (!station) {
       setAssetsReady(true)
       setSceneReady(true)
+      setBootGone(true)
+      setBootLeaving(false)
       return undefined
+    }
+    // First full-mode visit on home still plays the loader. Switching back
+    // from lite on a deep link should not replay it.
+    if (!enteredRef.current && window.location.pathname === '/') {
+      setAssetsReady(false)
+      setSceneReady(false)
+      setBootGone(false)
+      setBootLeaving(false)
     }
     let alive = true
     preloadStationAssets().then(() => {
@@ -250,7 +268,7 @@ function AppContent() {
       alive = false
       window.clearTimeout(timer)
     }
-  }, [flat])
+  }, [station])
 
   // First visit: hold loading until scene + assets ready, then fade into the intro.
   // Replays skip the gate once the station is already warm.
@@ -278,13 +296,14 @@ function AppContent() {
   }
 
   return (
+    <WallSlotContext.Provider value={wallSlots}>
     <KioskLeaveProvider value={kioskLeave}>
     <Layout $pad $header={headerH}>
       <SkipLink href="#content">Skip to content</SkipLink>
       <HeaderArea ref={headerRef}>
         <Header />
       </HeaderArea>
-      {(!flat && !onBlog && (shotFromRoute || arriving || entered)) ? (
+      {(station && !onBlog && (shotFromRoute || arriving || entered)) ? (
         <StationStage $header={headerH} $front={arriving} $hit={!arriving && (entered || !!shotFromRoute)}>
           <Suspense fallback={null}>
             <StationScene
@@ -295,13 +314,13 @@ function AppContent() {
               onIntroComplete={() => setEntered(true)}
               onReady={() => setSceneReady(true)}
               onFlat={() => {
-                setFlat(true)
+                setContextLost(true)
                 setAssetsReady(true)
                 setSceneReady(true)
               }}
               onArrive={handleArrive}
               leaveRef={leaveRef}
-              wallPages={wallPages}
+              bindSlot={bindSlot}
               wallInteractive={showPage}
               headerH={headerH}
             />
@@ -311,18 +330,19 @@ function AppContent() {
       {showBoot ? (
         <BootScreen leaving={bootLeaving} />
       ) : null}
-      <ContentArea id="content" tabIndex={-1} $header={headerH} $pass={!flat && (atKiosk || onPage)}>
+      <ContentArea id="content" tabIndex={-1} $header={headerH} $pass={station && (atKiosk || onPage)}>
         <Routes>
-          <Route path="/" element={flat ? <FlatHome /> : null} />
-          <Route path="/photo" element={flat ? <PhotoPage /> : null} />
-          <Route path="/video" element={flat ? <VideoPage /> : null} />
-          <Route path="/about" element={flat ? <AboutPage /> : null} />
-          <Route path="/blog" element={<Blog />} />
+          <Route path="/" element={<PageHost><FlatHome /></PageHost>} />
+          <Route path="/photo" element={<PageHost><PhotoPage /></PageHost>} />
+          <Route path="/video" element={<PageHost><VideoPage /></PageHost>} />
+          <Route path="/about" element={<PageHost><AboutPage /></PageHost>} />
+          <Route path="/blog" element={<PageHost><Blog /></PageHost>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </ContentArea>
     </Layout>
     </KioskLeaveProvider>
+    </WallSlotContext.Provider>
   )
 }
 
@@ -331,7 +351,9 @@ function App() {
     <BrowserRouter>
       <GlobalStyle />
       <GfxProvider>
-        <AppContent />
+        <PresentationProvider>
+          <AppContent />
+        </PresentationProvider>
       </GfxProvider>
     </BrowserRouter>
   )

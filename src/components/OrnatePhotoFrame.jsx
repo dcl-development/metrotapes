@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
-import PropTypes from 'prop-types'
 import { fitFrame } from '../lib/stationFrame'
 
 /**
@@ -132,16 +131,4 @@ export default function OrnatePhotoFrame({
       {caption ? <Caption>{caption}</Caption> : null}
     </Shell>
   )
-}
-
-OrnatePhotoFrame.propTypes = {
-  aspect: PropTypes.number,
-  caption: PropTypes.string,
-  children: PropTypes.node,
-  onClick: PropTypes.func,
-  onMouseEnter: PropTypes.func,
-  onMouseLeave: PropTypes.func,
-  onFocus: PropTypes.func,
-  onBlur: PropTypes.func,
-  'aria-label': PropTypes.string,
 }

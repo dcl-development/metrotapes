@@ -1,6 +1,4 @@
-import { createContext, useContext } from 'react'
-
-const KioskLeaveContext = createContext(null)
+import { KioskLeaveContext } from './kioskLeaveContext'
 
 export function KioskLeaveProvider({ value, children }) {
   return (
@@ -8,9 +6,4 @@ export function KioskLeaveProvider({ value, children }) {
       {children}
     </KioskLeaveContext.Provider>
   )
-}
-
-/** Returns tryLeave / goHome for header + kiosk nav. */
-export function useKioskLeave() {
-  return useContext(KioskLeaveContext)
 }

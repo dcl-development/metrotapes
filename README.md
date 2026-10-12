@@ -11,6 +11,7 @@ Live at [metrotapes.com](https://metrotapes.com).
 - Photos, about text, and blog posts come from Sanity through same-origin endpoints: `/api/photos`, `/api/about`, and `/api/posts`. The public site does not call the Sanity API from the browser. Image files still load from `cdn.sanity.io`.
 - Videos are read from a YouTube playlist through `/api/videos`, which falls back to the playlist's RSS feed when no API key is set. The playlist id is read from Sanity on the server.
 - The Sanity Studio lives in `studio/` and is built into the deployed site under `/studio`. Studio keeps its own connection to Sanity.
+- A longer walkthrough of routing, the station, and the API routes is in [docs/how-it-works.md](docs/how-it-works.md).
 
 ## Stack
 

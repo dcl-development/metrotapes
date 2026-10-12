@@ -302,10 +302,12 @@ export function WindCard({ ready, onCameraHome, reducedMotion, driveCamera = tru
 
   const HERO = useMemo(() => new THREE.Vector3(...FLIGHT_START), [])
   const LAND = useMemo(() => new THREE.Vector3(...TRASH_CARD.pos), [])
+  // Cross the open floor in front of the kiosk, then drop down the left side.
+  // The screen plane stays off the arc, and the litter spot is unchanged.
   const flight = useMemo(() => new THREE.CubicBezierCurve3(
     HERO.clone(),
-    new THREE.Vector3(1.42, 1.22, -3.05),
-    new THREE.Vector3(0.15, 0.48, -5.2),
+    new THREE.Vector3(0.15, 2.0, -1.7),
+    new THREE.Vector3(-1.55, 0.55, -5.45),
     LAND.clone(),
   ), [HERO, LAND])
   const LAND_ROT = useMemo(() => new THREE.Euler(...TRASH_CARD.rot), [])

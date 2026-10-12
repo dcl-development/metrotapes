@@ -3,7 +3,9 @@ import { createSanityClient } from './sanityClient.js'
 /** Same projection the photo page used to run in the browser. */
 export const PHOTOS_QUERY = `*[_type == "photos"][0].images[]{
   ...,
-  "alt": coalesce(alt, asset->altText)
+  "alt": coalesce(alt, asset->altText),
+  "width": asset->metadata.dimensions.width,
+  "height": asset->metadata.dimensions.height
 }`
 
 /** Same projection the about page used to run in the browser. */
@@ -11,8 +13,8 @@ export const ABOUT_QUERY = `*[_type == "about"][0]{
   title,
   description,
   instagramUrl,
-  photo1{..., "alt": coalesce(alt, asset->altText)},
-  photo2{..., "alt": coalesce(alt, asset->altText)}
+  photo1{..., "alt": coalesce(alt, asset->altText), "width": asset->metadata.dimensions.width, "height": asset->metadata.dimensions.height},
+  photo2{..., "alt": coalesce(alt, asset->altText), "width": asset->metadata.dimensions.width, "height": asset->metadata.dimensions.height}
 }`
 
 /** Same projection the blog page used to run in the browser. */

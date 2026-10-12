@@ -2,13 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { createPortal } from 'react-dom'
 import { fetchPhotos } from '../lib/contentApi'
-import { imageAlt, urlFor } from '../lib/sanity'
-import { getWallPageCache, whenStationPreloaded } from '../lib/preloadStation'
+import { imageAlt } from '../lib/sanity'
+import { photoSources, stripThumb } from '../lib/sanityImage'
 import styled from 'styled-components'
 import ImageModal from '../components/ImageModal'
 import OrnatePhotoFrame from '../components/OrnatePhotoFrame'
 import FrostNote from '../components/FrostNote'
-import { font } from '../styles/theme'
+import StationPlate from '../components/StationPlate'
+import { font, route } from '../styles/theme'
 import { photoAutoplayAllowed } from '../lib/stationFrame'
 
 const AUTO_MS = 4500
@@ -43,6 +44,7 @@ const Stage = styled.div`
   padding: 6px 10px 4px;
   box-sizing: border-box;
   container-type: size;
+  overflow: hidden;
 `
 
 const Slide = styled.img`
@@ -58,7 +60,7 @@ const Slide = styled.img`
   z-index: ${(p) => (p.$show ? 2 : 1)};
 `
 
-const StripRail = styled.div`
+const StripRail = styled.section`
   position: relative;
   flex: 0 0 auto;
   width: 100%;
@@ -162,7 +164,7 @@ function FilmStrip({
     return out
   }, [photos, n])
 
-  const loopW = () => n * cellRef.current
+  const loopW = useCallback(() => n * cellRef.current, [n])
 
   const applyX = useCallback((x) => {
     const track = trackRef.current
@@ -175,7 +177,7 @@ function FilmStrip({
     }
     xRef.current = x
     track.style.transform = `translate3d(${-x}px, 0, 0)`
-  }, [n])
+  }, [loopW])
 
   const indexFromX = useCallback((x) => {
     const rail = railRef.current
@@ -194,7 +196,7 @@ function FilmStrip({
     const mid = loop * Math.floor(COPIES / 2)
     const targetCenter = mid + i * cell + cell / 2
     return targetCenter - rail.clientWidth / 2
-  }, [n])
+  }, [loopW])
 
   const reportIndex = useCallback((next) => {
     activeRef.current = next
@@ -246,7 +248,7 @@ function FilmStrip({
       }
     }
     rafRef.current = requestAnimationFrame(tick)
-  }, [applyX, xForIndex, reportIndex, n])
+  }, [applyX, loopW, reportIndex, xForIndex])
 
   useEffect(() => {
     const measure = () => {
@@ -352,7 +354,7 @@ function FilmStrip({
   return (
     <StripRail
       ref={railRef}
-      aria-label="Photo strip — drag to scroll"
+      aria-label="Photo strip"
       style={{ '--shot-w': `${shotW}px` }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -367,7 +369,7 @@ function FilmStrip({
             aria-hidden
           >
             <img
-              src={urlFor(cell.photo).width(360).height(270).fit('crop').url()}
+              {...stripThumb(cell.photo)}
               alt=""
               loading="lazy"
               draggable={false}
@@ -379,11 +381,36 @@ function FilmStrip({
   )
 }
 
+const AutoRow = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 0 12px;
+  background: #100c08;
+  border-top: 1px solid rgba(196, 160, 106, 0.16);
+`
+
+const AutoBtn = styled.button`
+  min-width: 48px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
+  color: #e8d2a8;
+  font-family: ${font};
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+`
+
 export default function PhotoPage() {
   const location = useLocation()
-  const seed = getWallPageCache('photo')
-  const [photos, setPhotos] = useState(() => (seed.status === 'ready' ? seed.data : []))
-  const [status, setStatus] = useState(() => (seed.status === 'idle' ? 'loading' : seed.status))
+  const [photos, setPhotos] = useState([])
+  const [status, setStatus] = useState('loading')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedImage, setSelectedImage] = useState(null)
   const [featuredIndex, setFeaturedIndex] = useState(0)
@@ -396,6 +423,11 @@ export default function PhotoPage() {
   const [tabHidden, setTabHidden] = useState(
     () => typeof document !== 'undefined' && document.hidden,
   )
+  const reducedMotion = useMemo(
+    () => typeof window !== 'undefined'
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+    [],
+  )
 
   useEffect(() => {
     const onVis = () => setTabHidden(document.hidden)
@@ -405,25 +437,17 @@ export default function PhotoPage() {
 
   useEffect(() => {
     let alive = true
-    whenStationPreloaded().then(() => {
+    fetchPhotos().then((data) => {
       if (!alive) return
-      const cached = getWallPageCache('photo')
-      if (cached.status === 'ready' || cached.status === 'empty' || cached.status === 'error') {
-        setPhotos(cached.data || [])
-        setStatus(cached.status)
-        return
+      if (data?.length) {
+        setPhotos(data)
+        setFeaturedIndex(0)
+        setStatus('ready')
+      } else {
+        setStatus('empty')
       }
-      fetchPhotos().then((data) => {
-        if (!alive) return
-        if (data?.length) {
-          setPhotos(data)
-          setStatus('ready')
-        } else {
-          setStatus('empty')
-        }
-      }).catch(() => {
-        if (alive) setStatus('error')
-      })
+    }).catch(() => {
+      if (alive) setStatus('error')
     })
     return () => { alive = false }
   }, [])
@@ -454,15 +478,13 @@ export default function PhotoPage() {
   useEffect(() => {
     if (!photoAutoplayAllowed(location.pathname, tabHidden)) return undefined
     if (status !== 'ready' || photos.length < 2 || paused || isModalOpen) return undefined
-    const reduced = typeof window !== 'undefined'
-      && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    if (reduced) return undefined
+    if (reducedMotion) return undefined
 
     const id = window.setInterval(() => {
       setFeaturedIndex((i) => (i + 1) % photos.length)
     }, AUTO_MS)
     return () => window.clearInterval(id)
-  }, [location.pathname, tabHidden, status, photos.length, paused, isModalOpen])
+  }, [location.pathname, tabHidden, status, photos.length, paused, isModalOpen, reducedMotion])
 
   const bumpPause = useCallback(() => {
     setPaused(true)
@@ -500,6 +522,7 @@ export default function PhotoPage() {
   return (
     <>
       <Panel>
+        <StationPlate letter="P" title="Photo" color={route.photo} />
         {status === 'loading' && <FrostNote>Loading photos…</FrostNote>}
         {status === 'empty' && <FrostNote>No photos yet.</FrostNote>}
         {status === 'error' && <FrostNote>Could not load photos.</FrostNote>}
@@ -515,10 +538,15 @@ export default function PhotoPage() {
                 {layers.map((layer) => {
                   const photo = photos[layer.index]
                   if (!photo) return null
+                  const sources = photoSources(photo)
                   return (
                     <Slide
                       key={layer.key}
-                      src={urlFor(photo).width(1600).url()}
+                      src={sources.src}
+                      srcSet={sources.srcSet}
+                      sizes={sources.sizes}
+                      width={sources.width}
+                      height={sources.height}
                       alt={layer.show ? imageAlt(photo, 'Photograph by Ronnie Foreman') : ''}
                       aria-hidden={layer.show ? undefined : true}
                       $show={layer.show}
@@ -528,6 +556,18 @@ export default function PhotoPage() {
                 })}
               </OrnatePhotoFrame>
             </Stage>
+
+            {photos.length > 1 && location.pathname === '/photo' && !reducedMotion ? (
+              <AutoRow>
+                <AutoBtn
+                  type="button"
+                  aria-pressed={!paused}
+                  onClick={() => setPaused((on) => !on)}
+                >
+                  {paused ? 'Paused' : 'Playing'}
+                </AutoBtn>
+              </AutoRow>
+            ) : null}
 
             {photos.length > 1 ? (
               <FilmStrip

@@ -21,10 +21,28 @@ export function css3dBoxChanged(style, width, height, perspective, origin) {
     || style.perspectiveOrigin !== origin
 }
 
-/** Photo strip timer. It stays mounted inside the wall overlay, so it must stop when that surface is hidden. */
+/** Photo strip timer. It only runs while the gallery is the page in front of you. */
 export function photoAutoplayAllowed(pathname, hidden) {
   if (hidden) return false
-  return pathname === '/' || pathname === '/photo'
+  return pathname === '/photo'
+}
+
+/**
+ * Largest frame of `frameAspect` (width / height) that fits a stage.
+ * Used so a wide photo does not paint past the tablet viewport.
+ */
+export function fitFrame(boxW, boxH, frameAspect) {
+  const aspect = Number.isFinite(frameAspect) && frameAspect > 0 ? frameAspect : 1
+  const w = Math.max(0, Number(boxW) || 0)
+  const h = Math.max(0, Number(boxH) || 0)
+  if (w === 0 || h === 0) return { width: 0, height: 0 }
+  let width = w
+  let height = width / aspect
+  if (height > h) {
+    height = h
+    width = height * aspect
+  }
+  return { width, height }
 }
 
 /**

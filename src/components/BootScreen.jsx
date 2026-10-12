@@ -1,7 +1,6 @@
 import styled, { keyframes, css } from 'styled-components'
 import { font, station } from '../styles/theme'
 import { SUBWAY_LINES } from '../lib/subwayLines'
-import PropTypes from 'prop-types'
 
 const fadeOut = keyframes`
   from { opacity: 1; }
@@ -121,8 +120,4 @@ export default function BootScreen({ leaving = false }) {
       </Track>
     </Root>
   )
-}
-
-BootScreen.propTypes = {
-  leaving: PropTypes.bool,
 }

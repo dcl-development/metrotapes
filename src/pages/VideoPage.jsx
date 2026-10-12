@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import styled, { keyframes, css } from 'styled-components'
 import FrostNote from '../components/FrostNote'
-import { getWallPageCache, whenStationPreloaded } from '../lib/preloadStation'
+import StationPlate from '../components/StationPlate'
+import { loadVideoCatalog, youtubeThumb } from '../lib/videoCatalog'
 import { font, route } from '../styles/theme'
 
 const GREEN = route.video
@@ -123,7 +124,7 @@ const Time = styled.span`
   padding: 2px 6px;
   background: rgba(0, 0, 0, 0.88);
   color: #fff;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
@@ -179,7 +180,7 @@ const Status = styled.div`
   align-items: center;
   gap: 7px;
   margin-bottom: 5px;
-  font-size: 0.62rem;
+  font-size: 0.78rem;
   font-weight: 800;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -238,8 +239,10 @@ const Transport = styled.div`
 `
 
 const TwBtn = styled.button`
-  width: 40px;
-  height: 40px;
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  min-height: 48px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -293,7 +296,7 @@ const QueueHead = styled.div`
 
 const QueueLabel = styled.h2`
   margin: 0;
-  font-size: 0.68rem;
+  font-size: 0.8rem;
   font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -301,7 +304,7 @@ const QueueLabel = styled.h2`
 `
 
 const QueueCount = styled.span`
-  font-size: 0.68rem;
+  font-size: 0.8rem;
   font-weight: 700;
   color: rgba(255, 255, 255, 0.3);
   font-variant-numeric: tabular-nums;
@@ -348,7 +351,7 @@ const Clip = styled.button`
 `
 
 const Index = styled.span`
-  font-size: 0.68rem;
+  font-size: 0.8rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
@@ -428,10 +431,14 @@ function IconPause() {
 
 function YtThumb({ videoId, alt = '', lazy = false }) {
   // hqdefault always exists; maxresdefault 404s for many uploads and still logs in DevTools.
+  const src = youtubeThumb(videoId)
+  if (!src) return null
   return (
     <Thumb
-      src={`https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`}
+      src={src}
       alt={alt}
+      width={480}
+      height={360}
       loading={lazy ? 'lazy' : 'eager'}
     />
   )
@@ -449,63 +456,23 @@ function ThumbChrome({ videoId, duration, lazy = false, size = 40, showPlay = tr
 }
 
 export default function VideoPage() {
-  const seed = getWallPageCache('video')
   const scroller = useRef(null)
-  const [videos, setVideos] = useState(() => (seed.status === 'ready' ? seed.data : []))
-  const [status, setStatus] = useState(() => (seed.status === 'idle' ? 'loading' : seed.status))
-  const [statusDetail, setStatusDetail] = useState(() => seed.detail || '')
-  const [featuredId, setFeaturedId] = useState(() => (
-    seed.status === 'ready' && seed.data?.[0] ? seed.data[0].videoId : null
-  ))
+  const [videos, setVideos] = useState([])
+  const [status, setStatus] = useState('loading')
+  const [statusDetail, setStatusDetail] = useState('')
+  const [featuredId, setFeaturedId] = useState(null)
   const [playing, setPlaying] = useState(false)
 
   useEffect(() => {
     let alive = true
-    whenStationPreloaded().then(() => {
+    loadVideoCatalog().then((entry) => {
       if (!alive) return
-      const cached = getWallPageCache('video')
-      if (cached.status === 'ready' || cached.status === 'empty' || cached.status === 'error') {
-        setVideos(cached.data || [])
-        setStatus(cached.status)
-        setStatusDetail(cached.detail || '')
-        if (cached.status === 'ready' && cached.data?.[0]) {
-          setFeaturedId(cached.data[0].videoId)
-        }
-        return
+      setVideos(entry.data || [])
+      setStatus(entry.status === 'idle' ? 'loading' : entry.status)
+      setStatusDetail(entry.detail || '')
+      if (entry.status === 'ready' && entry.data?.[0]) {
+        setFeaturedId(entry.data[0].videoId)
       }
-
-      const fetchVideos = async () => {
-        setStatus('loading')
-        setStatusDetail('')
-        setPlaying(false)
-        try {
-          const response = await fetch('/api/videos')
-          const data = await response.json().catch(() => ({}))
-          if (!alive) return
-          if (!response.ok) {
-            setVideos([])
-            setStatus('error')
-            setStatusDetail(data.detail || `Could not load videos (${response.status}).`)
-            return
-          }
-          if (!data.videos?.length) {
-            setVideos([])
-            setStatus('empty')
-            setStatusDetail(data.detail || 'No videos to show.')
-            return
-          }
-          setVideos(data.videos)
-          setFeaturedId(data.videos[0].videoId)
-          setStatus('ready')
-        } catch (error) {
-          console.error('Error fetching videos:', error)
-          if (!alive) return
-          setVideos([])
-          setStatus('error')
-          setStatusDetail(error?.message || 'Could not load videos.')
-        }
-      }
-      fetchVideos()
     })
     return () => { alive = false }
   }, [])
@@ -529,6 +496,7 @@ export default function VideoPage() {
 
   return (
     <Container ref={scroller} data-wall-page="video">
+      <StationPlate letter="V" title="Video" color={GREEN} />
       {status === 'loading' && <FrostNote>Loading playlist…</FrostNote>}
       {(status === 'empty' || status === 'error') && (
         <FrostNote>

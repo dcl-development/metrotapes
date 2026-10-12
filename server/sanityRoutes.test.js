@@ -40,7 +40,10 @@ describe('readSanityConfig', () => {
 describe('content loaders', () => {
   it('keeps the queries the pages used to send from the browser', () => {
     assert.match(PHOTOS_QUERY, /\*\[_type == "photos"\]\[0\]\.images\[\]/)
-    assert.match(ABOUT_QUERY, /photo1\{\.\.\., "alt": coalesce\(alt, asset->altText\)\}/)
+    assert.match(PHOTOS_QUERY, /"width": asset->metadata\.dimensions\.width/)
+    assert.match(PHOTOS_QUERY, /"height": asset->metadata\.dimensions\.height/)
+    assert.match(ABOUT_QUERY, /photo1\{[^}]*"alt": coalesce\(alt, asset->altText\)/)
+    assert.match(ABOUT_QUERY, /"width": asset->metadata\.dimensions\.width/)
     assert.match(POSTS_QUERY, /\*\[_type == "post"\] \| order\(publishedAt desc\)/)
     assert.match(POSTS_QUERY, /instagramPost/)
   })

@@ -3,6 +3,7 @@ import { describe, it } from 'node:test'
 import {
   composerBufferStale,
   css3dBoxChanged,
+  fitFrame,
   photoAutoplayAllowed,
   preserveDrawingBuffer,
 } from './stationFrame.js'
@@ -43,16 +44,29 @@ describe('css3dBoxChanged', () => {
 })
 
 describe('photoAutoplayAllowed', () => {
-  it('runs on the kiosk and the photo wall only', () => {
-    assert.equal(photoAutoplayAllowed('/', false), true)
+  it('runs only while the photo gallery is open', () => {
     assert.equal(photoAutoplayAllowed('/photo', false), true)
   })
 
-  it('stops while another wall is up or the tab is hidden', () => {
+  it('does not advance the strip in the background on other routes', () => {
+    assert.equal(photoAutoplayAllowed('/', false), false)
     assert.equal(photoAutoplayAllowed('/about', false), false)
     assert.equal(photoAutoplayAllowed('/video', false), false)
     assert.equal(photoAutoplayAllowed('/photo', true), false)
-    assert.equal(photoAutoplayAllowed('/', true), false)
+  })
+})
+
+describe('fitFrame', () => {
+  it('shrinks a wide frame to the stage width', () => {
+    const box = fitFrame(700, 800, 2)
+    assert.equal(box.width, 700)
+    assert.equal(box.height, 350)
+  })
+
+  it('shrinks a tall frame to the stage height', () => {
+    const box = fitFrame(700, 400, 0.5)
+    assert.equal(box.height, 400)
+    assert.equal(box.width, 200)
   })
 })
 

@@ -1,35 +1,6 @@
 import { useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
-
-export const SITE_URL = 'https://metrotapes.com'
-
-const DEFAULT_DESCRIPTION =
-  'Photography and video by Ronnie Foreman in the New York metropolitan area.'
-
-const pages = {
-  '/': {
-    title: 'metrotapes',
-    description: DEFAULT_DESCRIPTION,
-  },
-  '/photo': {
-    title: 'photo · metrotapes',
-    description: 'Photographs by Ronnie Foreman / metrotapes.',
-  },
-  '/video': {
-    title: 'video · metrotapes',
-    description: 'Films and video by Ronnie Foreman / metrotapes.',
-  },
-  '/about': {
-    title: 'about · metrotapes',
-    description:
-      'Ronnie Foreman is a videographer in the New York metropolitan area. Skate, snow, and other visual work.',
-  },
-  '/blog': {
-    title: 'metrotapes',
-    description: DEFAULT_DESCRIPTION,
-    robots: 'noindex, nofollow',
-  },
-}
+import { canonicalUrl, pageForPath } from '../lib/routeMeta'
 
 function setMeta(selector, attribute, value) {
   const el = document.querySelector(selector)
@@ -40,12 +11,11 @@ export default function usePageMeta() {
   const { pathname } = useLocation()
 
   useEffect(() => {
-    const page = pages[pathname] || pages['/']
-    const url = `${SITE_URL}${pathname === '/' ? '/' : pathname}`
-
+    const page = pageForPath(pathname)
+    const url = canonicalUrl(page.path)
     document.title = page.title
     setMeta('meta[name="description"]', 'content', page.description)
-    setMeta('meta[name="robots"]', 'content', page.robots || 'index, follow')
+    setMeta('meta[name="robots"]', 'content', page.robots)
     setMeta('meta[property="og:title"]', 'content', page.title)
     setMeta('meta[property="og:description"]', 'content', page.description)
     setMeta('meta[property="og:url"]', 'content', url)

@@ -1,5 +1,4 @@
 import { useEffect, useCallback } from 'react'
-import PropTypes from 'prop-types'
 import styled from 'styled-components'
 import { imageAlt, urlFor } from '../lib/sanity'
 import { cushy } from '../styles/theme'
@@ -104,9 +103,9 @@ export default function ImageModal({ isOpen, onClose, currentImage, mediaItems }
         } while (newIndex !== currentIndex && mediaItems[newIndex].type !== 'image')
 
         if (newIndex !== currentIndex && mediaItems[newIndex].type === 'image') {
-            onImageChange(mediaItems[newIndex].image)
+            onClose(mediaItems[newIndex].image)
         }
-    }, [currentIndex, mediaItems])
+    }, [currentIndex, mediaItems, onClose])
 
     const handleNext = useCallback(() => {
         if (!mediaItems) return
@@ -116,13 +115,9 @@ export default function ImageModal({ isOpen, onClose, currentImage, mediaItems }
         } while (newIndex !== currentIndex && mediaItems[newIndex].type !== 'image')
 
         if (newIndex !== currentIndex && mediaItems[newIndex].type === 'image') {
-            onImageChange(mediaItems[newIndex].image)
+            onClose(mediaItems[newIndex].image)
         }
-    }, [currentIndex, mediaItems])
-
-    const onImageChange = useCallback((image) => {
-        onClose(image)
-    }, [onClose])
+    }, [currentIndex, mediaItems, onClose])
 
     const handleKeyDown = useCallback((e) => {
         if (!isOpen) return
@@ -178,23 +173,4 @@ export default function ImageModal({ isOpen, onClose, currentImage, mediaItems }
             </ModalContent>
         </Overlay>
     )
-}
-
-ImageModal.propTypes = {
-    isOpen: PropTypes.bool.isRequired,
-    onClose: PropTypes.func.isRequired,
-    currentImage: PropTypes.shape({
-        asset: PropTypes.shape({
-            _ref: PropTypes.string
-        })
-    }),
-    mediaItems: PropTypes.arrayOf(PropTypes.shape({
-        type: PropTypes.string.isRequired,
-        image: PropTypes.shape({
-            asset: PropTypes.shape({
-                _ref: PropTypes.string
-            })
-        }),
-        alt: PropTypes.string
-    }))
 } 

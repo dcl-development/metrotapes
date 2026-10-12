@@ -285,8 +285,8 @@ export function Train({ invite = false, blockClicksRef, intro = false, rollIn = 
     roofGeo.dispose()
   }, [body, frontGeo, roofGeo])
 
-  // First load (and reset) holds the R in the tunnel, then the existing
-  // arrival ease pulls it in once the boot screen is gone. No extra mesh.
+  // Park the R in the tunnel when the intro starts. rollIn (assets ready,
+  // still under the boot screen) releases the existing arrival early.
   useLayoutEffect(() => {
     if (reducedMotion) return
     const m = motion.current
@@ -298,14 +298,13 @@ export function Train({ invite = false, blockClicksRef, intro = false, rollIn = 
       }
       return
     }
-    if (rollIn) return
     m.phase = 'parked'
     m.z = TRAIN_ARRIVE_Z
     m.speed = 0
     m.introArmed = false
     if (root.current) root.current.position.z = TRAIN_ARRIVE_Z
     setLineIndex((i) => (i === 0 ? i : 0))
-  }, [intro, rollIn, reducedMotion])
+  }, [intro, reducedMotion])
 
   const y = TRAIN_Y
   const trainLen = TRAIN_CAR_N * TRAIN_UNIT

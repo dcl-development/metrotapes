@@ -108,6 +108,16 @@ const CARD_NOTCH = { u: 718 / 800, v: 82 / 506 }
 /** A couple of millimeters of stock, scaled off the card's 85.6mm long edge. */
 const CARD_THICK = TRASH_CARD.size[0] * (2 / 85.6)
 
+/**
+ * Close-up on the open track side (+X). The wall boards and kiosk screen
+ * sit the other way, so the spinning card has empty space behind it.
+ */
+export const INTRO_CAM = {
+  pos: [0.35, 1.83, -1.92],
+  look: [1.7, 1.55, -2.12],
+  fov: 28,
+}
+
 function createNotchedCardGeometry() {
   const [w, h] = TRASH_CARD.size
   const hw = w / 2
@@ -223,27 +233,23 @@ export function WindCard({ ready, onCameraHome, reducedMotion, driveCamera = tru
     bent: false,
   })
 
-  const FLY_SCALE = 3.6
   const LAND_SCALE = 1
   const HERO_SCALE = 1.55
-  /** Fast tumble, then the original fall. Integer turns so the pose matches. */
+  /** Fast tumble on the right, then the move left and down. Whole turns. */
   const FLICK = 1.05
   const SPIN_TURNS = 3
-  /** Card flies faster than the camera pull so it stays in POV */
-  const CAM_DUR = 3.35
   const CARD_DUR = 2.45
+  const FACE_YAW = -Math.PI / 2
 
-  // Near-vertical “swipe in air” pose at the open, then settles flat on litter
-  const START_ROT = useMemo(() => new THREE.Euler(-0.55, 0.18, 0.12), [])
-
-  const START = useMemo(() => new THREE.Vector3(0.15, 2.15, 1.35), [])
+  const HERO = useMemo(() => new THREE.Vector3(...INTRO_CAM.look), [])
+  const CAM_FLICK = useMemo(() => new THREE.Vector3(...INTRO_CAM.pos), [])
   const LAND = useMemo(() => new THREE.Vector3(...TRASH_CARD.pos), [])
   const LAND_ROT = useMemo(() => new THREE.Euler(...TRASH_CARD.rot), [])
   const CAM_START = useMemo(() => ({
-    pos: new THREE.Vector3(0.2, 1.95, 3.6),
-    look: new THREE.Vector3(0.15, 1.85, 1.0),
-    fov: 42,
-  }), [])
+    pos: CAM_FLICK.clone(),
+    look: HERO.clone(),
+    fov: INTRO_CAM.fov,
+  }), [CAM_FLICK, HERO])
   const CAM_KIOSK = useMemo(() => {
     const shot = resolvePov('kiosk')
     return {
@@ -253,7 +259,6 @@ export function WindCard({ ready, onCameraHome, reducedMotion, driveCamera = tru
     }
   }, [])
   const tmpPos = useMemo(() => new THREE.Vector3(), [])
-  const heroPos = useMemo(() => new THREE.Vector3(), [])
   const camPos = useMemo(() => new THREE.Vector3(), [])
   const tmpLook = useMemo(() => new THREE.Vector3(), [])
   const tmpEuler = useMemo(() => new THREE.Euler(), [])
@@ -332,46 +337,30 @@ export function WindCard({ ready, onCameraHome, reducedMotion, driveCamera = tru
     s.life += d
     if (ready && !s.finished) s.age += d
 
-    // Flick first. The fall clock starts only after those turns are done,
-    // so the original dive keeps its timing.
+    // Flick on the right, facing the camera. Then move left and down to the litter.
     const spinU = Math.min(1, s.age / FLICK)
     const settle = smooth(spinU)
     const fallAge = Math.max(0, s.age - FLICK)
     const u = Math.min(1, fallAge / CARD_DUR)
-    // Brief close-up, then a quicker dive so the card stays ahead of the camera
     const e = u < 0.28
       ? easeOut(u / 0.28) * 0.28
       : 0.28 + easeIn((u - 0.28) / 0.72) * 0.72
     const wind = (1 - e) ** 1.15
-    const sway = wind * (1 - (1 - settle) * 0.82)
     const t = s.life
 
-    // Falling-paper path: arc + side-to-side / up-down flutter that dies out near the floor
-    const lift = Math.sin(Math.min(e, 0.9) * Math.PI) * 0.95 * (1 - Math.max(0, (e - 0.7) / 0.3) ** 2)
-    tmpPos.lerpVectors(START, LAND, e)
-    tmpPos.y += lift * (1 - e * 0.4)
-    tmpPos.x += (Math.sin(t * 2.15) * 0.48 + Math.sin(t * 4.6) * 0.14) * wind
-    tmpPos.y += Math.sin(t * 3.05) * 0.16 * wind
-    tmpPos.z += (Math.cos(t * 1.75) * 0.32 + Math.sin(t * 3.8) * 0.1) * wind
-    heroPos.set(START.x, START.y + 0.04, START.z + 0.62)
-    heroPos.x += Math.sin(t * 1.15) * 0.035 * (1 - settle)
-    g.position.lerpVectors(heroPos, tmpPos, settle)
+    tmpPos.lerpVectors(HERO, LAND, e)
+    tmpPos.y += Math.sin(Math.min(e, 0.9) * Math.PI) * 0.28 * (1 - e)
+    tmpPos.x += Math.sin(t * 1.6) * 0.05 * wind
+    tmpPos.z += Math.cos(t * 1.3) * 0.04 * wind
+    g.position.lerpVectors(HERO, tmpPos, settle)
 
-    // Keep a vertical swipe bias early; wobble all axes like a sheet in air; settle flat late.
-    // The extra X spin is the long-axis flick. It lands on a whole number of turns.
-    // Drop the extra turns once they complete so the landing lerp is not unwrapping 6π.
+    // Whole turns around the long axis, then the floor pose. Extra 6π is dropped
+    // so the landing lerp does not unwrap it.
     const spin = spinU >= 1 ? 0 : (1 - (1 - spinU) ** 3) * Math.PI * 2 * SPIN_TURNS
     tmpEuler.set(
-      THREE.MathUtils.lerp(START_ROT.x, LAND_ROT.x, e)
-        + Math.sin(t * 2.9) * sway * 0.85
-        + Math.sin(t * 5.4) * sway * 0.22
-        + spin,
-      THREE.MathUtils.lerp(START_ROT.y, LAND_ROT.y, e)
-        + Math.sin(t * 1.55) * sway * 0.7
-        + Math.cos(t * 3.2) * sway * 0.35,
-      THREE.MathUtils.lerp(START_ROT.z, LAND_ROT.z, e)
-        + Math.cos(t * 2.4) * sway * 1.05
-        + Math.sin(t * 4.8) * sway * 0.28,
+      THREE.MathUtils.lerp(0, LAND_ROT.x, e) + spin,
+      THREE.MathUtils.lerp(FACE_YAW, LAND_ROT.y, e),
+      THREE.MathUtils.lerp(0, LAND_ROT.z, e),
     )
     if (u > 0.62) {
       const k = smooth((u - 0.62) / 0.38)
@@ -380,7 +369,7 @@ export function WindCard({ ready, onCameraHome, reducedMotion, driveCamera = tru
       tmpEuler.z = THREE.MathUtils.lerp(tmpEuler.z, LAND_ROT.z, k)
     }
     g.rotation.copy(tmpEuler)
-    g.scale.setScalar(THREE.MathUtils.lerp(HERO_SCALE, THREE.MathUtils.lerp(FLY_SCALE, LAND_SCALE, e), settle))
+    g.scale.setScalar(THREE.MathUtils.lerp(HERO_SCALE, LAND_SCALE, e))
 
     if (u >= 1 && !s.cardLanded) {
       g.position.copy(LAND)
@@ -412,24 +401,19 @@ export function WindCard({ ready, onCameraHome, reducedMotion, driveCamera = tru
       }
     }
 
-    // Close on the flick, then the original slower pull so the card stays in frame.
+    // Look right at the card, follow it left and down, then settle on the kiosk.
     if (driveCamera && !s.camHome) {
-      const cu = Math.min(1, Math.max(0, s.age - FLICK * 0.55) / CAM_DUR)
-      const ce = smooth(cu)
-      camPos.lerpVectors(CAM_START.pos, CAM_KIOSK.pos, ce)
-      tmpLook.lerpVectors(CAM_START.look, CAM_KIOSK.look, ce)
-      if (cu < 0.55) tmpLook.lerp(g.position, (1 - cu / 0.55) * 0.65)
-      let fov = THREE.MathUtils.lerp(CAM_START.fov, CAM_KIOSK.fov, ce)
-      const close = 1 - smooth(Math.min(1, Math.max(0, (spinU - 0.5) / 0.5)))
-      if (close > 0.001) {
-        heroPos.copy(g.position)
-        heroPos.x += 0.03
-        heroPos.y += 0.14
-        heroPos.z += 1.02
-        camPos.lerp(heroPos, close)
-        tmpLook.lerp(g.position, close)
-        fov = THREE.MathUtils.lerp(fov, 22, close)
-      }
+      const follow = 1 - smooth(Math.min(1, Math.max(0, (u - 0.7) / 0.3)))
+      camPos.copy(g.position)
+      camPos.x -= 1.35
+      camPos.y += 0.28
+      camPos.z += 0.2
+      if (settle < 1) camPos.lerp(CAM_FLICK, 1 - settle)
+      tmpLook.copy(g.position)
+      const home = 1 - follow
+      camPos.lerp(CAM_KIOSK.pos, home)
+      tmpLook.lerp(CAM_KIOSK.look, home)
+      const fov = THREE.MathUtils.lerp(INTRO_CAM.fov, CAM_KIOSK.fov, home)
       if (!ready) {
         setCam(camPos, tmpLook, fov)
         return
@@ -438,7 +422,7 @@ export function WindCard({ ready, onCameraHome, reducedMotion, driveCamera = tru
       camera.lookAt(tmpLook)
       camera.fov = fov
       camera.updateProjectionMatrix()
-      if (cu >= 1) {
+      if (u >= 1 && follow <= 0.001) {
         setCam(CAM_KIOSK.pos, CAM_KIOSK.look, CAM_KIOSK.fov)
         s.camHome = true
         finishIntro(s)
@@ -447,7 +431,7 @@ export function WindCard({ ready, onCameraHome, reducedMotion, driveCamera = tru
   })
 
   return (
-    <group ref={group} position={START.toArray()} scale={HERO_SCALE} rotation={START_ROT.toArray()}>
+    <group ref={group} position={HERO.toArray()} scale={HERO_SCALE} rotation={[0, FACE_YAW, 0]}>
       <MetroCardBody texture={texture} lit meshRef={meshRef} />
     </group>
   )

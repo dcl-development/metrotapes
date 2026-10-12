@@ -6,7 +6,7 @@ import { COL, POVS, isLandscapeZoom, isWallPov, ndcXFromClient, ndcXFromEvent, r
 import { CameraRig } from '../station/camera'
 import { Canvas } from '@react-three/fiber'
 import { ChromeBar, ChromeBtn, EdgeHit, GfxWatch, HomeIcon, IdlePump, KioskFrame, KioskGlass, KioskGlassDirt, Layer, LivePhotoIcon, Overlay, OverlayCam, OverlayObj, PanArrow, ReadyPing, SceneWrap, StageFit, StationFilm, ToneMap, WallFrame } from '../station/chrome'
-import { FloorTrash, TrackTrash, WindCard } from '../station/litter'
+import { FloorTrash, INTRO_CAM, TrackTrash, WindCard } from '../station/litter'
 import { InfoKiosk } from '../station/kiosk'
 import { Signage, WallBoards } from '../station/walls'
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -38,6 +38,7 @@ function StationWorld({
   dimmed,
   onArrive,
   introReady,
+  trainRoll = false,
   onIntroDone,
   showBoot = true,
   immersed = false,
@@ -93,14 +94,14 @@ function StationWorld({
         immersedId={immersedId}
         onSelect={onBoardSelect}
         invite={landscapeInvite}
-        projectHtml
+        projectHtml={!dimmed}
         busyRef={busyRef}
       />
       <Train
         invite={landscapeInvite}
         blockClicksRef={blockClicksRef}
         intro={dimmed}
-        rollIn={Boolean(dimmed && introReady)}
+        rollIn={Boolean(dimmed && trainRoll)}
       />
       {settings.extras ? (
         <Suspense fallback={null}>
@@ -114,7 +115,7 @@ function StationWorld({
           showBoot={showBoot}
           pickable={kioskPickable}
           onPick={onKioskPick}
-          projectHtml
+          projectHtml={!dimmed}
         />
       </group>
       {windMounted ? (
@@ -137,6 +138,7 @@ export default function StationScene({
   kioskLive = true,
   dimmed = false,
   introReady = false,
+  trainRoll = false,
   onIntroComplete,
   onReady,
   onFlat,
@@ -569,8 +571,8 @@ export default function StationScene({
             dpr={settings.dpr}
             gl={glConfig}
             camera={{
-              position: dimmed ? [0.2, 1.95, 3.6] : resolvePov(pov, undefined, kioskZoom).position,
-              fov: dimmed ? 42 : resolvePov(pov, undefined, kioskZoom).fov,
+              position: dimmed ? INTRO_CAM.pos : resolvePov(pov, undefined, kioskZoom).position,
+              fov: dimmed ? INTRO_CAM.fov : resolvePov(pov, undefined, kioskZoom).fov,
               near: 0.1,
               far: 90,
             }}
@@ -578,7 +580,7 @@ export default function StationScene({
             gl.setClearColor(COL.clear, 1)
             gl.toneMapping = THREE.ACESFilmicToneMapping
             gl.toneMappingExposure = settings.exposure
-              if (dimmed) camera.lookAt(0.15, 1.85, 1.0)
+              if (dimmed) camera.lookAt(...INTRO_CAM.look)
               else camera.lookAt(...resolvePov(pov, undefined, kioskZoom).lookAt)
             gl.domElement.addEventListener('webglcontextlost', (event) => {
               event.preventDefault()
@@ -601,6 +603,7 @@ export default function StationScene({
               dimmed={dimmed}
               onArrive={handleArrive}
               introReady={introReady}
+              trainRoll={trainRoll}
               onIntroDone={handleIntroDone}
               showBoot={zap === 'closed' || zap === 'closing'}
               immersed={pageView}

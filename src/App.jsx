@@ -5,7 +5,7 @@ import AboutPage from './pages/AboutPage'
 import Header from './components/Header'
 import BootScreen from './components/BootScreen'
 import { preloadStationAssets } from './lib/preloadStation'
-import { BOOT_LIMIT_MS } from './lib/bootGate'
+import { BOOT_CEREMONY_MS, BOOT_LIMIT_MS } from './lib/bootGate'
 import FlatHome from './components/FlatHome'
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import styled from 'styled-components'
@@ -185,11 +185,13 @@ function AppContent() {
   const onPage = Boolean(shotFromRoute && shotFromRoute !== 'kiosk')
   const showPage = onPage && pageReady
   const leaveRef = useRef({ tryLeave: () => false, goHome: null })
+  const bootShownAt = useRef(0)
   const replayRef = useRef(() => {})
   replayRef.current = () => {
     navigate('/')
     if (typeof leaveRef.current.goHome === 'function') leaveRef.current.goHome()
     if (!station || skipIntro) return
+    bootShownAt.current = 0
     setBootLeaving(false)
     setBootGone(false)
     setEntered(false)
@@ -256,6 +258,7 @@ function AppContent() {
     }
     // First full-mode visit on home still plays the loader.
     if (!enteredRef.current && window.location.pathname === '/') {
+      bootShownAt.current = 0
       setAssetsReady(false)
       setSceneReady(false)
       setBootGone(false)
@@ -278,24 +281,36 @@ function AppContent() {
     }
   }, [station])
 
-  // First visit: hold loading until scene + assets ready, then fade into the intro.
-  // Replays skip the gate once the station is already warm.
+  // Loading keeps running underneath. The outline still gets one full lap
+  // and a short lit hold before the fade, even when assets are already warm.
   useEffect(() => {
     if (!arriving) {
       setBootGone(true)
       setBootLeaving(false)
       return undefined
     }
-    if (booted) {
-      if (bootGone) return undefined
-      setBootLeaving(true)
-      const t = window.setTimeout(() => setBootGone(true), 560)
-      return () => window.clearTimeout(t)
+    if (bootGone) return undefined
+    if (!bootShownAt.current) bootShownAt.current = performance.now()
+    if (!booted) {
+      setBootLeaving(false)
+      return undefined
     }
-    setBootGone(false)
-    setBootLeaving(false)
-    return undefined
-  }, [arriving, booted, bootGone])
+    const wait = skipIntro
+      ? 0
+      : Math.max(0, BOOT_CEREMONY_MS - (performance.now() - bootShownAt.current))
+    let fadeTimer = 0
+    const startTimer = window.setTimeout(() => {
+      setBootLeaving(true)
+      fadeTimer = window.setTimeout(() => {
+        bootShownAt.current = 0
+        setBootGone(true)
+      }, 560)
+    }, wait)
+    return () => {
+      window.clearTimeout(startTimer)
+      window.clearTimeout(fadeTimer)
+    }
+  }, [arriving, booted, bootGone, skipIntro])
 
   const handleArrive = (pov) => {
     if (pov === 'photo' || pov === 'video' || pov === 'about') {
@@ -318,6 +333,7 @@ function AppContent() {
               kioskLive={atKiosk && entered}
               dimmed={arriving}
               introReady={booted && bootGone}
+              trainRoll={booted}
               onIntroComplete={() => setEntered(true)}
               onReady={() => setSceneReady(true)}
               onFlat={() => {

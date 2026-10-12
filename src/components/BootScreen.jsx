@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import styled, { keyframes, css } from 'styled-components'
 import { font, station } from '../styles/theme'
+import { BOOT_PLAY_MS } from '../lib/bootGate'
 import { SUBWAY_LINES } from '../lib/subwayLines'
 
 const fadeOut = keyframes`
@@ -160,22 +161,22 @@ export default function BootScreen({ leaving = false }) {
     if (!node) return undefined
     const { len } = frame
     node.style.strokeDasharray = `${len} ${len}`
+    const paint = (p) => {
+      const u = Math.min(1, Math.max(0, p))
+      node.style.strokeDashoffset = String(len * (1 - u))
+      node.setAttribute('stroke', mixYellow(0.35 + u * 0.65))
+      node.style.filter = `drop-shadow(0 0 ${2 + u * 3}px rgba(252, 204, 10, ${0.35 + u * 0.6}))`
+    }
     if (reduced || leaving) {
-      node.style.strokeDashoffset = '0'
-      node.setAttribute('stroke', BRIGHT)
-      node.style.filter = 'drop-shadow(0 0 4px rgba(252, 204, 10, 0.95))'
+      paint(1)
       return undefined
     }
     const t0 = performance.now()
     let raf = 0
     const tick = (now) => {
-      const t = (now - t0) / 1000
-      // Creep toward done, then the fade snaps the loop fully lit.
-      const p = 0.92 * (1 - Math.exp(-t / 2.2))
-      node.style.strokeDashoffset = String(len * (1 - p))
-      node.setAttribute('stroke', mixYellow(0.35 + p * 0.7))
-      node.style.filter = `drop-shadow(0 0 ${2 + p * 3}px rgba(252, 204, 10, ${0.35 + p * 0.6}))`
-      raf = requestAnimationFrame(tick)
+      const p = Math.min(1, (now - t0) / BOOT_PLAY_MS)
+      paint(1 - (1 - p) ** 2)
+      if (p < 1) raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)

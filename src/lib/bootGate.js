@@ -1,5 +1,9 @@
 /** Boot must leave even if a texture or the scene never reports ready. */
 export const BOOT_LIMIT_MS = 8000
+/** The neon loop always travels once, then stays lit briefly, before the fade. */
+export const BOOT_PLAY_MS = 1800
+export const BOOT_HOLD_MS = 400
+export const BOOT_CEREMONY_MS = BOOT_PLAY_MS + BOOT_HOLD_MS
 
 /**
  * Resolves 'done' when `work` settles, or 'timeout' if it is still pending.

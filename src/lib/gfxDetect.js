@@ -142,6 +142,15 @@ export function stepUp(tier) {
   return 'high'
 }
 
+/** A drop may tighten the pixel cap. It must not open a higher one. */
+export function dprCapAfterDrop(currentCap, nextTierCap) {
+  const from = Number(currentCap)
+  const to = Number(nextTierCap)
+  if (!Number.isFinite(from)) return to
+  if (!Number.isFinite(to)) return from
+  return Math.min(from, to)
+}
+
 /**
  * Weak / strong / unknown from the renderer string and max texture size.
  * Screen width is not an input.
@@ -251,10 +260,10 @@ export function detectGfxTier({
 }
 
 /**
- * One measured window. Soften DPR, then drop. Promote only with headroom,
- * never above the ceiling, and not inside the hysteresis window.
- * A pessimistic GPU probe may raise the ceiling low → mid on the first
- * healthy sample (`warmCorrectable`).
+ * One measured window. Soften DPR, then drop. Do not step back up to a
+ * tier that failed — that bounce is the tracks-view flicker.
+ * A pessimistic GPU probe may still raise the ceiling low → mid once
+ * (`warmCorrectable`).
  */
 export function decideQualityStep({
   fps,
@@ -272,11 +281,9 @@ export function decideQualityStep({
   const catastrophic = fps < FPS_CATASTROPHE
   const healthy = fps > FPS_PROMOTE && hitchRate <= HITCH_PROMOTE_MAX
   const next = stepUp(tier)
-  const withinCeiling = tierRank(next) <= tierRank(ceiling)
   const warmLift = Boolean(
     warmCorrectable && tier === 'low' && ceiling === 'low' && next === 'mid',
   )
-  const canPromote = !locked && next !== tier && (withinCeiling || warmLift)
 
   if (cool > 0 && !catastrophic) {
     return { action: 'hold', warmCorrectable }
@@ -289,11 +296,14 @@ export function decideQualityStep({
     return { action: 'hold', warmCorrectable: false }
   }
 
-  if (healthy && canPromote && sinceDrop >= PROMOTE_AFTER_DROP_SEC) {
+  // Only the one-shot probe correction may step up. Promoting back to a
+  // tier that just failed is the tracks-view flash: darker, then sharper,
+  // then a higher pixel cap when the drop clears the DPR limit.
+  if (healthy && warmLift && sinceDrop >= PROMOTE_AFTER_DROP_SEC) {
     return {
       action: 'promote',
       cool: 4,
-      raiseCeiling: warmLift,
+      raiseCeiling: true,
       warmCorrectable: false,
     }
   }

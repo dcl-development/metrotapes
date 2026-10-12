@@ -132,6 +132,9 @@ const StationStage = styled.div`
   z-index: ${(p) => (p.$front ? 5 : 0)};
   pointer-events: ${(p) => (p.$hit ? 'auto' : 'none')};
   transition: z-index 0s;
+  /* The tracks shot pushes CSS-3D panels off the stage. If they enlarge
+     the document, the scrollbar toggles and the canvas and header jump. */
+  overflow: hidden;
 `
 
 const ContentArea = styled.main`

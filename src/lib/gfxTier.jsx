@@ -4,6 +4,7 @@ import {
   detectGfxTier,
   isSlowConnection,
   isSoftwareRendererString,
+  dprCapAfterDrop,
   stepDown,
   stepUp,
   tierRank,
@@ -86,7 +87,7 @@ export function GfxProvider({ children }) {
     setTier((current) => {
       const next = stepDown(current)
       if (next === current) return current
-      setDprMax(null)
+      setDprMax((prev) => dprCapAfterDrop(prev ?? tierDprMax(current), tierDprMax(next)))
       return next
     })
   }, [])

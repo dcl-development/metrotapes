@@ -5,6 +5,7 @@ import {
   classifyGpu,
   decideQualityStep,
   detectGfxTier,
+  dprCapAfterDrop,
   stepDown,
   stepUp,
 } from './gfxDetect.js'
@@ -72,11 +73,11 @@ test('high is opt-in and stays the ceiling', () => {
   assert.equal(detectGfxTier({ forced: 'low' }).locked, true)
 })
 
-test('promote stays inside the ceiling and the hysteresis window', () => {
+test('a recovered tier does not step back up', () => {
   const healthy = { fps: 58, hitchRate: 0.1, sinceDrop: 99, sincePromote: 99, cool: 0 }
   assert.equal(
     decideQualityStep({ ...healthy, tier: 'low', ceiling: 'mid', canSoften: false }).action,
-    'promote',
+    'hold',
   )
   assert.equal(
     decideQualityStep({ ...healthy, tier: 'mid', ceiling: 'mid', canSoften: false }).action,
@@ -171,4 +172,10 @@ test('drops still happen, and a recent promote ignores mild jank', () => {
   assert.equal(stepDown('high'), 'mid')
   assert.equal(stepUp('low'), 'mid')
   assert.equal(stepUp('mid'), 'high')
+})
+
+test('a drop never raises the pixel cap', () => {
+  assert.equal(dprCapAfterDrop(1, 1.5), 1)
+  assert.equal(dprCapAfterDrop(1.25, 1.5), 1.25)
+  assert.equal(dprCapAfterDrop(1.5, 1.25), 1.25)
 })

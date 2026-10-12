@@ -1,11 +1,13 @@
 import { useCallback, useMemo, useState } from 'react'
 import { hasWebGL } from '../lib/webglSupport'
 import { stationEnabled } from '../lib/pageMount'
-import { readPresentation, writePresentation } from '../lib/presentation'
+import { writePresentation } from '../lib/presentation'
 import { PresentationContext } from '../lib/presentationContext'
 
 export function PresentationProvider({ children }) {
-  const [mode, setModeState] = useState(readPresentation)
+  // The header toggle is gone. A stored "lite" choice would leave the
+  // station off with no way back. Automatic quality still lives in GfxWatch.
+  const [mode, setModeState] = useState('full')
   const [contextLost, setContextLost] = useState(false)
   const webgl = useMemo(() => hasWebGL(), [])
 

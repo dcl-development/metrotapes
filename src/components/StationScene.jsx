@@ -205,8 +205,9 @@ export default function StationScene({
   // Menu accepts clicks only after the close-up camera has settled.
   // Otherwise the click that zooms in also hits a destination button.
   const screenLive = kioskLive && zap === 'open' && kioskZoom === 'close' && camSettled
-  // Synchronous: the follow-up click from a kiosk pick happens before re-render.
-  blockClicksRef.current = pov === 'kiosk' && kioskZoom === 'close'
+  // The zoom-in click is one gesture: it must not also depart the train.
+  // A parked home view still has to hover and click the train itself.
+  blockClicksRef.current = pov === 'kiosk' && kioskZoom === 'close' && !camSettled
   const pageView = immersed && isWallPov(pov)
 
   useEffect(() => {
@@ -229,7 +230,18 @@ export default function StationScene({
   }, [pov, kioskZoom])
 
   useEffect(() => {
-    const start = () => setFlying(true)
+    let w = window.innerWidth
+    let h = window.innerHeight
+    // A scrollbar twitch and visualViewport both emit resize. Restarting
+    // the flight on those flips frameloop and the pixel budget.
+    const start = () => {
+      const nw = window.innerWidth
+      const nh = window.innerHeight
+      if (nw === w && nh === h) return
+      w = nw
+      h = nh
+      setFlying(true)
+    }
     window.addEventListener('resize', start)
     window.addEventListener('orientationchange', start)
     const vv = window.visualViewport
@@ -695,6 +707,18 @@ export default function StationScene({
       ) : null}
       {!dimmed && (isWallPov(pov) || (kioskLive && pov === 'kiosk' && (landscape || (kioskZoom === 'close' && kioskArrived && zap === 'open')))) ? (
         <ChromeBar $dock={pageView}>
+          {kioskZoom === 'right' ? (
+            <ChromeBtn
+              type="button"
+              aria-label="Look left"
+              onClick={() => {
+                setCamSettled(false)
+                setKioskZoom('left')
+              }}
+            >
+              <PanArrow dir="left" />
+            </ChromeBtn>
+          ) : null}
           {landscape ? (
             <ChromeBtn
               type="button"
@@ -708,31 +732,28 @@ export default function StationScene({
               <HomeIcon />
             </ChromeBtn>
           ) : null}
-          <ChromeBtn
-            type="button"
-            aria-label={isWallPov(pov) || kioskZoom === 'close' ? 'Zoom out' : (kioskZoom === 'right' ? 'Look left' : 'Look right')}
-            onClick={() => {
-              if (isWallPov(pov)) {
-                setCamSettled(false)
-                setKioskZoom('left')
-                navigate('/')
-                return
-              }
-              if (kioskZoom === 'close') {
+          {kioskZoom === 'right' ? null : (
+            <ChromeBtn
+              type="button"
+              aria-label={isWallPov(pov) || kioskZoom === 'close' ? 'Zoom out' : 'Look right'}
+              onClick={() => {
+                if (isWallPov(pov)) {
+                  setCamSettled(false)
+                  setKioskZoom('left')
+                  navigate('/')
+                  return
+                }
                 setCamSettled(false)
                 setKioskZoom('right')
-                return
-              }
-              setCamSettled(false)
-              setKioskZoom((z) => (z === 'right' ? 'left' : 'right'))
-            }}
-          >
-            {isWallPov(pov) || kioskZoom === 'close' ? (
-              <LivePhotoIcon />
-            ) : (
-              <PanArrow dir={kioskZoom === 'right' ? 'left' : 'right'} />
-            )}
-          </ChromeBtn>
+              }}
+            >
+              {isWallPov(pov) || kioskZoom === 'close' ? (
+                <LivePhotoIcon />
+              ) : (
+                <PanArrow dir="right" />
+              )}
+            </ChromeBtn>
+          )}
         </ChromeBar>
       ) : null}
     </Layer>

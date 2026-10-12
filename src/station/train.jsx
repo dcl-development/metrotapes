@@ -205,7 +205,7 @@ function TrainCar({ maps, body, frontGeo, roofGeo, carL, carW, wallTop, zOffset,
   )
 }
 
-export function Train({ invite = false, blockClicksRef }) {
+export function Train({ invite = false, blockClicksRef, intro = false, rollIn = false }) {
   const { startSettings, settings } = useGfx()
   const root = useRef()
   const glowLight = useRef()
@@ -219,6 +219,7 @@ export function Train({ invite = false, blockClicksRef }) {
     z: TRAIN_Z,
     speed: 0,
     nextLine: 1,
+    introArmed: false,
   })
   const reducedMotion = useMemo(
     () => typeof window !== 'undefined'
@@ -284,6 +285,28 @@ export function Train({ invite = false, blockClicksRef }) {
     roofGeo.dispose()
   }, [body, frontGeo, roofGeo])
 
+  // First load (and reset) holds the R in the tunnel, then the existing
+  // arrival ease pulls it in once the boot screen is gone. No extra mesh.
+  useLayoutEffect(() => {
+    if (reducedMotion) return
+    const m = motion.current
+    if (!intro) {
+      if (!m.introArmed && m.phase === 'parked' && m.z !== TRAIN_Z) {
+        m.z = TRAIN_Z
+        m.speed = 0
+        if (root.current) root.current.position.z = TRAIN_Z
+      }
+      return
+    }
+    if (rollIn) return
+    m.phase = 'parked'
+    m.z = TRAIN_ARRIVE_Z
+    m.speed = 0
+    m.introArmed = false
+    if (root.current) root.current.position.z = TRAIN_ARRIVE_Z
+    setLineIndex((i) => (i === 0 ? i : 0))
+  }, [intro, rollIn, reducedMotion])
+
   const y = TRAIN_Y
   const trainLen = TRAIN_CAR_N * TRAIN_UNIT
 
@@ -311,6 +334,14 @@ export function Train({ invite = false, blockClicksRef }) {
     headLights.current.forEach((light) => {
       if (light) light.intensity = 3.6 + (parked ? idle * (call ? 1.85 : 1.0) : 0.5) + h * 2.2
     })
+
+    if (rollIn && !reducedMotion && !m.introArmed && m.phase === 'parked') {
+      m.introArmed = true
+      m.phase = 'arriving'
+      m.z = TRAIN_ARRIVE_Z
+      m.speed = 10
+      root.current.position.z = m.z
+    }
 
     if (m.phase === 'departing') {
       hoverTarget.current = 0

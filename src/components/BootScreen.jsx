@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useRef, useState } from 'react'
 import styled, { keyframes, css } from 'styled-components'
 import { font, station } from '../styles/theme'
 import { SUBWAY_LINES } from '../lib/subwayLines'
@@ -5,12 +6,6 @@ import { SUBWAY_LINES } from '../lib/subwayLines'
 const fadeOut = keyframes`
   from { opacity: 1; }
   to { opacity: 0; }
-`
-
-/* Hard on/off — platform lamps, not a soft SaaS pulse. */
-const lamp = keyframes`
-  0%, 100% { opacity: 0.18; }
-  40%, 60% { opacity: 1; }
 `
 
 const Root = styled.div`
@@ -22,19 +17,34 @@ const Root = styled.div`
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 1.5rem;
   ${(p) => p.$leaving && css`
     animation: ${fadeOut} 0.55s ease forwards;
     pointer-events: none;
   `}
 `
 
-const Strip = styled.div`
+const Frame = styled.div`
+  position: relative;
+  width: ${(p) => p.$w}px;
+  height: ${(p) => p.$h}px;
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+`
+
+const Rows = styled.div`
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+`
+
+const Row = styled.div`
+  display: flex;
   justify-content: center;
   gap: 5px;
-  max-width: 220px;
 `
 
 const Bullet = styled.div`
@@ -52,6 +62,13 @@ const Bullet = styled.div`
   background: ${(p) => p.$bg};
 `
 
+const Outline = styled.svg`
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+`
+
 /** Off-screen label so the loader still announces without visible copy. */
 const SrOnly = styled.span`
   position: absolute;
@@ -66,34 +83,104 @@ const SrOnly = styled.span`
   border: 0;
 `
 
-const Track = styled.div`
-  display: flex;
-  gap: 3px;
-  width: 148px;
-`
-
-const Seg = styled.div`
-  flex: 1;
-  height: 4px;
-  background: #fccc0a;
-  opacity: 0.18;
-  animation: ${lamp} 1.05s steps(1, end) infinite;
-  animation-delay: ${(p) => p.$i * 0.09}s;
-
-  @media (prefers-reduced-motion: reduce) {
-    animation: none;
-    opacity: ${(p) => (p.$i < 5 ? 1 : 0.18)};
-  }
-`
-
 /** Tight set — strip map, not a confetti pile. */
 const BOOT_LINES = SUBWAY_LINES.filter((l) => (
   ['A', 'C', 'E', '1', '2', '3', 'N', 'Q', 'R', 'L', 'G', '7'].includes(l.line)
 ))
 
-const SEGS = 12
+const BULLET = 22
+const GAP = 5
+const PAD_X = 16
+const PAD_Y = 14
+const INSET = 1.75
+const RADIUS = 12
+const DIM = '#4a3b0c'
+const BRIGHT = '#FCCC0A'
+
+function rowWidth(count) {
+  if (count <= 0) return 0
+  return count * BULLET + (count - 1) * GAP
+}
+
+/** Clockwise rounded rect starting at the top center, so the dash grows from there. */
+function outlinePath(x, y, w, h, r) {
+  const cx = x + w / 2
+  return [
+    `M ${cx} ${y}`,
+    `H ${x + w - r}`,
+    `A ${r} ${r} 0 0 1 ${x + w} ${y + r}`,
+    `V ${y + h - r}`,
+    `A ${r} ${r} 0 0 1 ${x + w - r} ${y + h}`,
+    `H ${x + r}`,
+    `A ${r} ${r} 0 0 1 ${x} ${y + h - r}`,
+    `V ${y + r}`,
+    `A ${r} ${r} 0 0 1 ${x + r} ${y}`,
+    `H ${cx}`,
+  ].join(' ')
+}
+
+function outlineLength(w, h, r) {
+  return 2 * (w - 2 * r) + 2 * (h - 2 * r) + 2 * Math.PI * r
+}
+
+function mixYellow(t) {
+  const u = Math.min(1, Math.max(0, t))
+  const a = [0x4a, 0x3b, 0x0c]
+  const b = [0xfc, 0xcc, 0x0a]
+  const c = a.map((v, i) => Math.round(v + (b[i] - v) * u))
+  return `rgb(${c[0]}, ${c[1]}, ${c[2]})`
+}
 
 export default function BootScreen({ leaving = false }) {
+  const glowRef = useRef(null)
+  const [reduced] = useState(() => (
+    typeof window !== 'undefined'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  ))
+  const topCount = Math.ceil(BOOT_LINES.length / 2)
+  const topLines = BOOT_LINES.slice(0, topCount)
+  const bottomLines = BOOT_LINES.slice(topCount)
+  const frame = useMemo(() => {
+    const innerW = Math.max(rowWidth(topLines.length), rowWidth(bottomLines.length))
+    const innerH = BULLET * 2 + GAP
+    const w = innerW + PAD_X * 2
+    const h = innerH + PAD_Y * 2
+    const pathW = w - INSET * 2
+    const pathH = h - INSET * 2
+    return {
+      w,
+      h,
+      d: outlinePath(INSET, INSET, pathW, pathH, RADIUS),
+      len: outlineLength(pathW, pathH, RADIUS),
+    }
+  }, [topLines.length, bottomLines.length])
+
+  useEffect(() => {
+    const node = glowRef.current
+    if (!node) return undefined
+    const { len } = frame
+    node.style.strokeDasharray = `${len} ${len}`
+    if (reduced || leaving) {
+      node.style.strokeDashoffset = '0'
+      node.setAttribute('stroke', BRIGHT)
+      node.style.filter = 'drop-shadow(0 0 4px rgba(252, 204, 10, 0.95))'
+      return undefined
+    }
+    const t0 = performance.now()
+    let raf = 0
+    const tick = (now) => {
+      const t = (now - t0) / 1000
+      // Creep toward done, then the fade snaps the loop fully lit.
+      const p = 0.92 * (1 - Math.exp(-t / 2.2))
+      node.style.strokeDashoffset = String(len * (1 - p))
+      node.setAttribute('stroke', mixYellow(0.35 + p * 0.7))
+      node.style.filter = `drop-shadow(0 0 ${2 + p * 3}px rgba(252, 204, 10, ${0.35 + p * 0.6}))`
+      raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [frame, leaving, reduced])
+
   return (
     <Root
       $leaving={leaving}
@@ -102,22 +189,54 @@ export default function BootScreen({ leaving = false }) {
       aria-busy="true"
     >
       <SrOnly>Loading</SrOnly>
-      <Strip aria-hidden="true">
-        {BOOT_LINES.map((line) => (
-          <Bullet
-            key={line.line}
-            $bg={line.color}
-            $fg={line.textColor}
-          >
-            {line.line}
-          </Bullet>
-        ))}
-      </Strip>
-      <Track aria-hidden="true">
-        {Array.from({ length: SEGS }, (_, i) => (
-          <Seg key={i} $i={i} />
-        ))}
-      </Track>
+      <Frame $w={frame.w} $h={frame.h}>
+        <Outline viewBox={`0 0 ${frame.w} ${frame.h}`} aria-hidden="true">
+          <defs>
+            <filter id="boot-neon" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="1.6" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+          <path
+            d={frame.d}
+            fill="none"
+            stroke={DIM}
+            strokeWidth="2.5"
+            strokeLinejoin="round"
+          />
+          <path
+            ref={glowRef}
+            d={frame.d}
+            fill="none"
+            stroke={reduced || leaving ? BRIGHT : DIM}
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeDasharray={`${frame.len} ${frame.len}`}
+            strokeDashoffset={reduced || leaving ? 0 : frame.len}
+            filter="url(#boot-neon)"
+          />
+        </Outline>
+        <Rows aria-hidden="true">
+          <Row>
+            {topLines.map((line) => (
+              <Bullet key={line.line} $bg={line.color} $fg={line.textColor}>
+                {line.line}
+              </Bullet>
+            ))}
+          </Row>
+          <Row>
+            {bottomLines.map((line) => (
+              <Bullet key={line.line} $bg={line.color} $fg={line.textColor}>
+                {line.line}
+              </Bullet>
+            ))}
+          </Row>
+        </Rows>
+      </Frame>
     </Root>
   )
 }

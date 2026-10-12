@@ -96,7 +96,12 @@ function StationWorld({
         projectHtml
         busyRef={busyRef}
       />
-      <Train invite={landscapeInvite} blockClicksRef={blockClicksRef} />
+      <Train
+        invite={landscapeInvite}
+        blockClicksRef={blockClicksRef}
+        intro={dimmed}
+        rollIn={Boolean(dimmed && introReady)}
+      />
       {settings.extras ? (
         <Suspense fallback={null}>
           <LazyTrainSteam />

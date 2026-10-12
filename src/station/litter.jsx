@@ -100,6 +100,78 @@ const TRASH_CARD = {
 }
 
 /**
+ * `/metrocard.png` is 800×506 with a transparent chamfer in the top-right.
+ * Cut the mesh to that outline so the hole is empty air, not a dark rectangle.
+ */
+const CARD_NOTCH = { u: 718 / 800, v: 82 / 506 }
+/** A couple of millimeters of stock, scaled off the card's 85.6mm long edge. */
+const CARD_THICK = TRASH_CARD.size[0] * (2 / 85.6)
+
+function createNotchedCardGeometry() {
+  const [w, h] = TRASH_CARD.size
+  const hw = w / 2
+  const hh = h / 2
+  const notchX = -hw + CARD_NOTCH.u * w
+  const notchY = hh - CARD_NOTCH.v * h
+  const shape = new THREE.Shape()
+  shape.moveTo(-hw, -hh)
+  shape.lineTo(hw, -hh)
+  shape.lineTo(hw, notchY)
+  shape.lineTo(notchX, hh)
+  shape.lineTo(-hw, hh)
+  shape.closePath()
+  // r182 extrudes non-indexed, so each face keeps its own normal.
+  const geo = new THREE.ExtrudeGeometry(shape, {
+    depth: CARD_THICK,
+    bevelEnabled: false,
+    steps: 1,
+    curveSegments: 1,
+  })
+  const pos = geo.attributes.position
+  const uv = geo.attributes.uv
+  for (let i = 0; i < pos.count; i += 1) {
+    const x = pos.getX(i)
+    const y = pos.getY(i)
+    const u = (x + hw) / w
+    const v = (y + hh) / h
+    // z = 0 is the back cap. Mirror it so the art still reads from behind.
+    uv.setXY(i, pos.getZ(i) < CARD_THICK * 0.5 ? 1 - u : u, v)
+  }
+  uv.needsUpdate = true
+  geo.translate(0, 0, -CARD_THICK / 2)
+  geo.computeVertexNormals()
+  return geo
+}
+
+function MetroCardBody({ texture, lit = false }) {
+  const geometry = useMemo(() => createNotchedCardGeometry(), [])
+  const materials = useMemo(() => ([
+    new THREE.MeshStandardMaterial({
+      map: texture,
+      roughness: lit ? 0.45 : 0.88,
+      metalness: lit ? 0.06 : 0.04,
+      emissive: new THREE.Color('#2a2418'),
+      emissiveIntensity: lit ? 0.4 : 0,
+      // Discard the PNG's clear pixels. Blending ate the card against the floor.
+      alphaTest: 0.5,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
+    }),
+    new THREE.MeshStandardMaterial({
+      color: '#c49a28',
+      roughness: 0.65,
+      metalness: 0.12,
+    }),
+  ]), [texture, lit])
+  useLayoutEffect(() => () => {
+    geometry.dispose()
+    materials.forEach((m) => m.dispose())
+  }, [geometry, materials])
+  return <mesh geometry={geometry} material={materials} />
+}
+
+/**
  * Intro: one continuous MetroCard flight onto the trash (no wait→fly snap).
  * Card outruns the camera so it stays in frame; intro ends only after both settle.
  * Flutter is cheap trig only (phone-safe), not a physics sim.
@@ -290,25 +362,7 @@ export function WindCard({ ready, onCameraHome, reducedMotion, driveCamera = tru
 
   return (
     <group ref={group} position={START.toArray()} scale={FLY_SCALE} rotation={START_ROT.toArray()}>
-      <mesh>
-        <planeGeometry args={TRASH_CARD.size} />
-        {/* Opaque like FloorTrash — transparent + floor coplanar was eating the card on land */}
-        <meshStandardMaterial
-          map={texture}
-          roughness={0.45}
-          metalness={0.06}
-          side={THREE.DoubleSide}
-          emissive="#2a2418"
-          emissiveIntensity={0.4}
-          polygonOffset
-          polygonOffsetFactor={-1}
-          polygonOffsetUnits={-1}
-        />
-      </mesh>
-      <mesh position={[0, 0, -0.004]} rotation={[0, Math.PI, 0]}>
-        <planeGeometry args={TRASH_CARD.size} />
-        <meshStandardMaterial color="#c49a28" roughness={0.65} metalness={0.12} />
-      </mesh>
+      <MetroCardBody texture={texture} lit />
     </group>
   )
 }
@@ -362,29 +416,9 @@ export function FloorTrash({ showMetroCard = true }) {
   return (
     <group>
       {showMetroCard ? (
-        <>
-          <mesh
-            position={TRASH_CARD.pos}
-            rotation={TRASH_CARD.rot}
-            castShadow={false}
-          >
-            <planeGeometry args={TRASH_CARD.size} />
-            <meshStandardMaterial
-              map={metroTex}
-              roughness={0.88}
-              metalness={0.04}
-              side={THREE.DoubleSide}
-            />
-          </mesh>
-          <mesh
-            position={[TRASH_CARD.pos[0], TRASH_CARD.pos[1] - 0.003, TRASH_CARD.pos[2]]}
-            rotation={TRASH_CARD.rot}
-            castShadow={false}
-          >
-            <planeGeometry args={TRASH_CARD.size} />
-            <meshStandardMaterial color="#c49a28" roughness={0.7} metalness={0.1} side={THREE.BackSide} />
-          </mesh>
-        </>
+        <group position={TRASH_CARD.pos} rotation={TRASH_CARD.rot}>
+          <MetroCardBody texture={metroTex} />
+        </group>
       ) : null}
       {bits.map((b, i) => {
         if (b.kind === 'bag') {

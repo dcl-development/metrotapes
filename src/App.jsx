@@ -7,18 +7,16 @@ import BootScreen from './components/BootScreen'
 import { preloadStationAssets } from './lib/preloadStation'
 import { BOOT_LIMIT_MS } from './lib/bootGate'
 import FlatHome from './components/FlatHome'
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import styled from 'styled-components'
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import Blog from './pages/Blog'
 import { font, station } from './styles/theme'
 import usePageMeta from './hooks/usePageMeta'
 import { KioskLeaveProvider } from './context/KioskLeaveContext'
 import { GfxProvider } from './lib/gfxTier'
 import { PresentationProvider } from './components/PresentationProvider'
-import PageHost from './components/PageHost'
 import { usePresentation } from './lib/usePresentation'
-import { WallSlotContext } from './lib/wallSlotContext'
 
 const StationScene = lazy(() => import('./components/StationScene'))
 
@@ -158,6 +156,7 @@ const SHOT = {
 
 function AppContent() {
   const location = useLocation()
+  const navigate = useNavigate()
   const { station, setContextLost } = usePresentation()
   const shotFromRoute = SHOT[location.pathname]
   const atKiosk = location.pathname === '/'
@@ -186,6 +185,15 @@ function AppContent() {
   const onPage = Boolean(shotFromRoute && shotFromRoute !== 'kiosk')
   const showPage = onPage && pageReady
   const leaveRef = useRef({ tryLeave: () => false, goHome: null })
+  const replayRef = useRef(() => {})
+  replayRef.current = () => {
+    navigate('/')
+    if (typeof leaveRef.current.goHome === 'function') leaveRef.current.goHome()
+    if (!station || skipIntro) return
+    setBootLeaving(false)
+    setBootGone(false)
+    setEntered(false)
+  }
   const kioskLeave = useMemo(() => ({
     tryLeave: (to) => leaveRef.current.tryLeave(to),
     goHome: () => {
@@ -195,19 +203,17 @@ function AppContent() {
       }
       return false
     },
+    replay: () => replayRef.current(),
   }), [])
-  const slotsRef = useRef({ photo: null, video: null, about: null })
-  const [slotEpoch, setSlotEpoch] = useState(0)
-  const bindSlot = useCallback((id, node) => {
-    if (slotsRef.current[id] === node) return
-    slotsRef.current[id] = node
-    setSlotEpoch((n) => n + 1)
-  }, [])
-  const wallSlots = useMemo(() => ({
-    slotsRef,
-    epoch: slotEpoch,
-    bindSlot,
-  }), [slotEpoch, bindSlot])
+  const wallPages = useMemo(() => (
+    station
+      ? {
+        photo: <PhotoPage />,
+        video: <VideoPage />,
+        about: <AboutPage />,
+      }
+      : null
+  ), [station])
   const headerRef = useRef(null)
   const [headerH, setHeaderH] = useState(64)
   usePageMeta()
@@ -248,8 +254,7 @@ function AppContent() {
       setBootLeaving(false)
       return undefined
     }
-    // First full-mode visit on home still plays the loader. Switching back
-    // from lite on a deep link should not replay it.
+    // First full-mode visit on home still plays the loader.
     if (!enteredRef.current && window.location.pathname === '/') {
       setAssetsReady(false)
       setSceneReady(false)
@@ -299,7 +304,6 @@ function AppContent() {
   }
 
   return (
-    <WallSlotContext.Provider value={wallSlots}>
     <KioskLeaveProvider value={kioskLeave}>
     <Layout $pad $header={headerH}>
       <SkipLink href="#content">Skip to content</SkipLink>
@@ -323,7 +327,7 @@ function AppContent() {
               }}
               onArrive={handleArrive}
               leaveRef={leaveRef}
-              bindSlot={bindSlot}
+              wallPages={wallPages}
               wallInteractive={showPage}
               headerH={headerH}
             />
@@ -335,17 +339,16 @@ function AppContent() {
       ) : null}
       <ContentArea id="content" tabIndex={-1} $header={headerH} $pass={station && (atKiosk || onPage)}>
         <Routes>
-          <Route path="/" element={<PageHost><FlatHome /></PageHost>} />
-          <Route path="/photo" element={<PageHost><PhotoPage /></PageHost>} />
-          <Route path="/video" element={<PageHost><VideoPage /></PageHost>} />
-          <Route path="/about" element={<PageHost><AboutPage /></PageHost>} />
-          <Route path="/blog" element={<PageHost><Blog /></PageHost>} />
+          <Route path="/" element={station ? null : <FlatHome />} />
+          <Route path="/photo" element={station ? null : <PhotoPage />} />
+          <Route path="/video" element={station ? null : <VideoPage />} />
+          <Route path="/about" element={station ? null : <AboutPage />} />
+          <Route path="/blog" element={<Blog />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </ContentArea>
     </Layout>
     </KioskLeaveProvider>
-    </WallSlotContext.Provider>
   )
 }
 

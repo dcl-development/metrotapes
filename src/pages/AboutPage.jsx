@@ -5,8 +5,7 @@ import { imageAlt } from '../lib/sanity'
 import { imageSrcSet, imageUrl } from '../lib/sanityImage'
 import { PortableText } from '@portabletext/react'
 import FrostNote from '../components/FrostNote'
-import StationPlate from '../components/StationPlate'
-import { font, route, signage } from '../styles/theme'
+import { font, route } from '../styles/theme'
 
 const BROWN = route.about
 
@@ -17,12 +16,8 @@ const Container = styled.div`
   overflow-y: auto;
   overscroll-behavior: contain;
   isolation: isolate;
-  background:
-    linear-gradient(#121214, #121214) 0 0 / 100% 8px no-repeat,
-    linear-gradient(${BROWN}, ${BROWN}) 0 8px / 100% 6px no-repeat,
-    linear-gradient(#121214, #121214) 0 14px / 100% 8px no-repeat,
-    #0c0e10;
-  padding: 28px 14px 28px;
+  background: #0c0e10;
+  padding: 12px 14px 28px;
   box-sizing: border-box;
   color: #fff;
   pointer-events: auto;
@@ -35,14 +30,12 @@ const Shell = styled.div`
   margin: 0 auto;
 `
 
-const Title = styled.h2`
-  margin: 0 0 1.15rem;
-  font-family: ${signage};
-  font-size: 1.35rem;
+const Title = styled.h1`
+  margin: 0 0 1.25rem;
+  font-size: 1.45rem;
   font-weight: 700;
   letter-spacing: -0.03em;
   line-height: 1.2;
-  text-transform: uppercase;
 `
 
 const Top = styled.div`
@@ -64,7 +57,6 @@ const Portrait = styled.div`
     width: 100%;
     height: auto;
     display: block;
-    outline: 4px solid ${BROWN};
   }
 
   @media (max-width: 640px) {
@@ -183,12 +175,9 @@ export default function AboutPage() {
 
   return (
     <Container>
-      <Shell>
-        <StationPlate letter="A" title="About" color={BROWN} />
-        {status === 'loading' && <FrostNote>Loading…</FrostNote>}
-        {status === 'empty' && <FrostNote>No about info yet.</FrostNote>}
-        {status === 'error' && <FrostNote>Could not load about info.</FrostNote>}
-      </Shell>
+      {status === 'loading' && <FrostNote>Loading…</FrostNote>}
+      {status === 'empty' && <FrostNote>No about info yet.</FrostNote>}
+      {status === 'error' && <FrostNote>Could not load about info.</FrostNote>}
       {status === 'ready' && aboutContent ? (
         <Shell>
           <Title>{aboutContent.title}</Title>
@@ -196,11 +185,9 @@ export default function AboutPage() {
             {photo2 ? (
               <Portrait>
                 <img
-                  src={imageUrl(photo2, { width: 480 })}
-                  srcSet={imageSrcSet(photo2, [320, 480, 720])}
+                  src={imageUrl(photo2, { width: 800 })}
+                  srcSet={imageSrcSet(photo2, [480, 800])}
                   sizes="(max-width: 640px) 280px, 240px"
-                  width={photo2.width || 480}
-                  height={photo2.height || 640}
                   alt={imageAlt(photo2, 'Portrait of Ronnie Foreman')}
                 />
               </Portrait>
@@ -227,11 +214,9 @@ export default function AboutPage() {
           {photo1 ? (
             <Landscape>
               <img
-                src={imageUrl(photo1, { width: 960 })}
+                src={imageUrl(photo1, { width: 1400 })}
                 srcSet={imageSrcSet(photo1, [640, 960, 1400])}
                 sizes="(max-width: 780px) 92vw, 780px"
-                width={photo1.width || 1400}
-                height={photo1.height || 900}
                 alt={imageAlt(photo1, 'Photograph by Ronnie Foreman')}
               />
             </Landscape>

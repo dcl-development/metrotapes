@@ -3,37 +3,12 @@ import * as THREE from 'three'
 import { KIOSK, applyCss3dCamera, makeRoundedBoxGeometry, makeRoundedPlaneGeometry, objectCssMatrix } from './css3d'
 import { KIOSK_RADIUS_M } from '../lib/kioskSize'
 import { makeCanvasTexture, paintKioskPlastic, paintKioskRough } from './textures'
-import { haloTexture } from './glow'
-import { primeMtaPlate } from '../lib/mtaPlate'
 import { useFrame, useLoader, useThree } from '@react-three/fiber'
 import { useGfx } from '../lib/useGfx'
-import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-
-function BootLogo({ logoW, logoH, z }) {
-  const logoTex = useLoader(THREE.TextureLoader, '/mta-logo.jpg')
-  useLayoutEffect(() => {
-    logoTex.colorSpace = THREE.SRGBColorSpace
-    logoTex.anisotropy = 8
-    logoTex.needsUpdate = true
-  }, [logoTex])
-  return (
-    <mesh position={[0, 0, z]}>
-      <planeGeometry args={[logoW, logoH]} />
-      <meshBasicMaterial map={logoTex} toneMapped={false} />
-    </mesh>
-  )
-}
+import { useLayoutEffect, useMemo, useRef } from 'react'
 
 export function InfoKiosk({ hud, showBoot = true, pickable = false, onPick, projectHtml = true }) {
-  const { settings, startSettings } = useGfx()
-  const [plateReady, setPlateReady] = useState(false)
-  useEffect(() => {
-    let alive = true
-    primeMtaPlate()
-      .then(() => { if (alive) setPlateReady(true) })
-      .catch(() => { if (alive) setPlateReady(true) })
-    return () => { alive = false }
-  }, [])
+  const { settings } = useGfx()
   const { cabW, cabH, cabD, postH, postW, screenW, screenH, panelW, panelH } = KIOSK
   const yCab = postH + cabH / 2
   const screen = useRef()
@@ -43,6 +18,14 @@ export function InfoKiosk({ hud, showBoot = true, pickable = false, onPick, proj
   const pxPerMeter = panelW / screenW
   const lastCam = useRef('')
   const lastObj = useRef('')
+  const logoTex = useLoader(THREE.TextureLoader, '/mta-logo.jpg')
+
+  useLayoutEffect(() => {
+    logoTex.colorSpace = THREE.SRGBColorSpace
+    logoTex.anisotropy = 4
+    logoTex.needsUpdate = true
+  }, [logoTex])
+
   // CSS-3D projection — keep transforms warm even while hidden (boot / intro).
   useFrame(() => {
     const root = hud?.current?.root
@@ -117,14 +100,12 @@ export function InfoKiosk({ hud, showBoot = true, pickable = false, onPick, proj
     [screenW, screenH],
   )
   const plastic = useMemo(() => {
-    const px = startSettings.propPx ?? 256
-    const aniso = startSettings.aniso ?? 4
-    const map = makeCanvasTexture(paintKioskPlastic, px, THREE.SRGBColorSpace, aniso)
-    const rough = makeCanvasTexture(paintKioskRough, px, THREE.NoColorSpace, aniso)
+    const map = makeCanvasTexture(paintKioskPlastic, 256, THREE.SRGBColorSpace)
+    const rough = makeCanvasTexture(paintKioskRough, 256, THREE.NoColorSpace)
     map.repeat.set(1.2, 2)
     rough.repeat.set(1.2, 2)
     return { map, rough }
-  }, [startSettings])
+  }, [])
   const blobTex = useMemo(() => {
     const canvas = document.createElement('canvas')
     canvas.width = canvas.height = 128
@@ -212,12 +193,12 @@ export function InfoKiosk({ hud, showBoot = true, pickable = false, onPick, proj
         <mesh position={[0, 0, -cabD / 2 + 0.014]} geometry={screenGeo}>
           <meshBasicMaterial color="#050505" toneMapped={false} />
         </mesh>
-        {showBoot && plateReady ? (
-          <Suspense fallback={null}>
-            <BootLogo logoW={logoW} logoH={logoH} z={-cabD / 2 + 0.016} />
-          </Suspense>
-        ) : null}
-        {!showBoot ? (
+        {showBoot ? (
+          <mesh position={[0, 0, -cabD / 2 + 0.016]}>
+            <planeGeometry args={[logoW, logoH]} />
+            <meshBasicMaterial map={logoTex} toneMapped={false} />
+          </mesh>
+        ) : (
           <pointLight
             position={[0.1, 0.14, faceZ + 0.2]}
             color="#c5d6ea"
@@ -225,21 +206,7 @@ export function InfoKiosk({ hud, showBoot = true, pickable = false, onPick, proj
             distance={1.7}
             decay={2}
           />
-        ) : null}
-        {settings.cheapGlow ? (
-          <mesh position={[0, 0, screenZ + 0.01]} raycast={() => null}>
-            <planeGeometry args={[screenW * 1.28, screenH * 1.12]} />
-            <meshBasicMaterial
-              map={haloTexture()}
-              color="#d5e4ff"
-              transparent
-              opacity={0.42}
-              depthWrite={false}
-              blending={THREE.AdditiveBlending}
-              toneMapped={false}
-            />
-          </mesh>
-        ) : null}
+        )}
         <object3D ref={screen} position={[0, 0, screenZ]} />
       </group>
       {pickable ? (

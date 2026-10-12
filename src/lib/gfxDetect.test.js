@@ -10,18 +10,13 @@ import {
   stepUp,
 } from './gfxDetect.js'
 
-test('low stays light, mid and high paint sharper, and bloom stays high-only', () => {
-  assert.equal(GFX.low.mapPx, 256)
-  assert.equal(GFX.low.cheapGlow, true)
+test('low stays light and bloom stays high-only', () => {
   assert.equal(GFX.low.bloom, false)
-  assert.ok(GFX.mid.mapPx > GFX.low.mapPx)
-  assert.equal(GFX.mid.cheapGlow, true)
+  assert.equal(GFX.low.trainFront, 512)
   assert.equal(GFX.mid.bloom, false)
-  assert.ok(GFX.high.mapPx > GFX.mid.mapPx)
-  assert.equal(GFX.high.cheapGlow, false)
+  assert.equal(GFX.mid.trainFront, 768)
   assert.equal(GFX.high.bloom, true)
-  assert.ok(GFX.high.aniso >= GFX.mid.aniso)
-  assert.ok(GFX.mid.aniso > GFX.low.aniso)
+  assert.equal(GFX.high.trainFront, 1024)
 })
 
 test('software, reduced motion, and data saver stay low and locked', () => {

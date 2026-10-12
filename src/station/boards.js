@@ -11,7 +11,9 @@ export function wallBoardList() {
   ]
 }
 
-export function makeBoardLabel(title, accent, w = 512, h = 96, aniso = 4) {
+export function makeBoardLabel(title, accent) {
+  const w = 512
+  const h = 96
   const canvas = document.createElement('canvas')
   canvas.width = w
   canvas.height = h
@@ -19,19 +21,15 @@ export function makeBoardLabel(title, accent, w = 512, h = 96, aniso = 4) {
   ctx.fillStyle = '#111'
   ctx.fillRect(0, 0, w, h)
   ctx.fillStyle = accent
-  const bar = Math.max(10, Math.round(w * 0.02))
-  ctx.fillRect(0, 0, bar, h)
+  ctx.fillRect(0, 0, 10, h)
   ctx.fillStyle = '#fff'
-  ctx.font = `bold ${Math.round(h * 0.5)}px ${FONT}`
-  if ('letterSpacing' in ctx) ctx.letterSpacing = `${Math.round(h * -0.02)}px`
+  ctx.font = `bold 48px ${FONT}`
+  ctx.letterSpacing = '-2px'
   ctx.textBaseline = 'middle'
-  ctx.fillText(title, bar + Math.round(w * 0.035), h * 0.54)
+  ctx.fillText(title, 28, h * 0.54)
   const tex = new THREE.CanvasTexture(canvas)
   tex.colorSpace = THREE.SRGBColorSpace
-  tex.anisotropy = aniso
-  tex.magFilter = THREE.LinearFilter
-  tex.minFilter = THREE.LinearFilter
-  tex.generateMipmaps = false
+  tex.anisotropy = 4
   tex.needsUpdate = true
   return tex
 }

@@ -6,19 +6,18 @@ Metrotapes is a Vite and React app. The home page is a 3D subway station when We
 
 - `src/App.jsx` has routes for `/`, `/photo`, `/video`, `/about`, and `/blog`. Anything else redirects to `/`.
 - `/blog` is a normal scrolling page and the station is not mounted.
-- Photo, video, about, and home are real route elements, not empty routes. `PageHost` decides where the page mounts (`src/lib/pageMount.js`):
-  - `document` — blog, and every route when the station is off (no WebGL, lite mode, or a lost context).
+- Photo, video, and about are mounted on the station walls for the whole visit, including the home view. `pageMount` in `src/lib/pageMount.js` says where a route's page lives:
+  - `document` — blog, and every route when the station is off (no WebGL, or a lost context).
   - `hidden` — 3D home. The kiosk is the page.
-  - `wait` — a 3D wall route whose frame is not ready yet. The page stays unmounted so it does not fetch twice.
-  - `portal` — a 3D wall route, mounted once into the station frame.
+  - `station` — a 3D wall route. The same page component is already on that board.
 - `SHOT` in `App.jsx` maps the path to a camera shot (`kiosk`, `photo`, `video`, `about`). `StationScene.jsx` flies the camera there. The wall HTML becomes interactive once the camera reports it has arrived (`onArrive` sets `pageReady`).
-- The boot screen only shows on a first visit to `/`. Visiting a wall page directly, or having reduced motion turned on, skips the intro and starts already in the station. A timeout in `App` clears the boot screen if the canvas never becomes ready.
-- A lite/full choice is stored in `localStorage` under `metrotapes-quality`. Lite, or a browser that cannot create a WebGL context, renders the flat pages instead of the station.
+- The boot screen only shows on a first visit to `/`, and again when the figure button in the header restarts the visit. Visiting a wall page directly, or having reduced motion turned on, skips the intro and starts already in the station. A timeout in `App` clears the boot screen if the canvas never becomes ready.
+- Flat Photo, Video, About, and Home pages render only when WebGL is unavailable or the context is lost. There is no control to choose that view.
 - Each route has its own title, description, canonical, and social tags in `src/lib/routeMeta.js`. The production build writes `dist/photo/index.html`, `dist/video/index.html`, `dist/about/index.html`, and `dist/blog/index.html` from that table. After navigation, the client hook applies the same tags.
 
 ## What loads at boot
 
-`src/lib/preloadStation.js` does not download station textures or wall content. The canvas `TextureLoader` fetches each texture once and caches it. Photos, about, and the video list load when their own page mounts. The home page does not request them. The boot screen waits on the scene, and gives up after the timeout in `App` rather than hanging.
+`src/lib/preloadStation.js` warms the MTA plate and does not download the other station textures. The canvas `TextureLoader` fetches each texture once and caches it. Photos, about, and the video list load when the wall boards mount with the station, so they are on the walls from the home view. The boot screen waits on the scene, and gives up after the timeout in `App` rather than hanging.
 
 ## Content from Sanity
 

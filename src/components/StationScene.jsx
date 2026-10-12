@@ -50,8 +50,8 @@ function StationWorld({
   watchArmed = true,
 }) {
   const landscapeInvite = isLandscapeZoom(kioskZoom) && !dimmed
-  const { settings, startSettings } = useGfx()
-  const maps = useStationMaps(startSettings)
+  const { settings } = useGfx()
+  const maps = useStationMaps()
   const reducedMotion = useMemo(
     () => typeof window !== 'undefined'
       && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
@@ -137,7 +137,7 @@ export default function StationScene({
   onFlat,
   onArrive,
   leaveRef,
-  bindSlot,
+  wallPages = null,
   wallInteractive = false,
   headerH = 64,
 }) {
@@ -163,15 +163,6 @@ export default function StationScene({
     cam: null,
     obj: { photo: null, video: null, about: null },
   })
-  // A fresh inline ref would detach and reattach every render, and bindSlot
-  // sets state, which is an update loop on wall routes.
-  const slotBinders = useRef({})
-  const binderFor = (id) => {
-    if (!slotBinders.current[id]) {
-      slotBinders.current[id] = (node) => bindSlot?.(id, node)
-    }
-    return slotBinders.current[id]
-  }
   const navigate = useNavigate()
   const location = useLocation()
   const pov = isWallPov(shot) || shot === 'kiosk' ? shot : (POVS[shot] ? shot : 'kiosk')
@@ -639,7 +630,7 @@ export default function StationScene({
               </OverlayObj>
             </OverlayCam>
           </Overlay>
-        {isWallPov(pov) ? (
+        {wallPages ? (
           <Overlay data-wall-hud="root" ref={(n) => { wallHud.current.root = n }} $page={pageView}>
             <OverlayCam data-wall-hud="cam" ref={(n) => { wallHud.current.cam = n }} $page={pageView}>
               {wallBoardList().map((b) => (
@@ -663,12 +654,7 @@ export default function StationScene({
                     $h={wall.panelH}
                     $soft={settings.softScreens}
                   >
-                    {pov === b.id ? (
-                      <div
-                        ref={binderFor(b.id)}
-                        style={{ position: 'absolute', inset: 0 }}
-                      />
-                    ) : null}
+                    {wallPages[b.id]}
                     {pageView && pov === b.id ? null : (
                       <>
                         <KioskGlass aria-hidden />

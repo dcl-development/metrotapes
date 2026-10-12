@@ -1,6 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
-import { fitFrame } from '../lib/stationFrame'
 
 /**
  * Carved gold frame PNG (transparent opening), stretched so the
@@ -18,7 +16,7 @@ const FRAME_INSET = {
 const Shell = styled.button`
   position: relative;
   display: block;
-  /* Fallback until the stage is measured. JS then fits the box to the stage. */
+  /* Fill the stage: as big as container allows while keeping opening aspect. */
   width: min(100%, calc(100cqh * ${(p) => p.$frameAspect}));
   max-width: 100%;
   max-height: 100%;
@@ -29,8 +27,8 @@ const Shell = styled.button`
   border: 0;
   background: transparent;
   cursor: pointer;
-  filter: drop-shadow(0 10px 22px rgba(0, 0, 0, 0.45));
-  transition: width 0.7s ease, height 0.7s ease;
+  filter: drop-shadow(0 18px 40px rgba(0, 0, 0, 0.6));
+  transition: width 0.7s ease, aspect-ratio 0.7s ease;
 
   &:focus-visible {
     outline: 2px solid #c4a06a;
@@ -90,35 +88,11 @@ export default function OrnatePhotoFrame({
 }) {
   const photoAspect = Number.isFinite(aspect) && aspect > 0.2 && aspect < 5 ? aspect : 4 / 3
   const frameAspect = photoAspect * (OPEN_H / OPEN_W)
-  const shellRef = useRef(null)
-  const [box, setBox] = useState(null)
-
-  useEffect(() => {
-    const parent = shellRef.current?.parentElement
-    if (!parent) return undefined
-    const apply = () => {
-      const rect = parent.getBoundingClientRect()
-      const next = fitFrame(rect.width - 8, rect.height - 8, frameAspect)
-      setBox(next.width > 0 ? next : null)
-    }
-    apply()
-    const ro = new ResizeObserver(apply)
-    ro.observe(parent)
-    window.addEventListener('resize', apply)
-    window.addEventListener('orientationchange', apply)
-    return () => {
-      ro.disconnect()
-      window.removeEventListener('resize', apply)
-      window.removeEventListener('orientationchange', apply)
-    }
-  }, [frameAspect])
 
   return (
     <Shell
-      ref={shellRef}
       type="button"
       $frameAspect={frameAspect}
-      style={box ? { width: `${box.width}px`, height: `${box.height}px`, maxWidth: '100%', maxHeight: '100%' } : undefined}
       onClick={onClick}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
@@ -127,7 +101,7 @@ export default function OrnatePhotoFrame({
       aria-label={ariaLabel}
     >
       <Well>{children}</Well>
-      <FrameArt src="/photo-frame.png?v=5" alt="" width={719} height={821} draggable={false} />
+      <FrameArt src="/photo-frame.png" alt="" draggable={false} />
       {caption ? <Caption>{caption}</Caption> : null}
     </Shell>
   )

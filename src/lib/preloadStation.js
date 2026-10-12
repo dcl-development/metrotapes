@@ -8,6 +8,7 @@ export function whenStationPreloaded() {
 /**
  * Station textures load through the canvas (TextureLoader caches one request).
  * A second preload raced that loader and downloaded the same files twice.
+ * Wall photos, about, and videos load on their own routes through the API.
  * The boot screen waits on the scene, with its own timeout in App.
  */
 export function preloadStationAssets() {

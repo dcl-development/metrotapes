@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react-swc'
+import { runAbout, runPhotos, runPosts } from './server/sanityRoutes.js'
 import { allowVideosRequest } from './server/videosGuard.js'
 import { getPlaylistConfig, loadPlaylistVideos } from './server/youtubePlaylist.js'
 import { applyRouteMeta } from './src/lib/routeMeta.js'
@@ -29,6 +30,27 @@ function routeHtmlPlugin() {
       }
     },
   }
+}
+
+function attachJsonRoute(server, path, run, env) {
+  server.middlewares.use(path, async (req, res) => {
+    try {
+      const result = await run(req, env)
+      res.statusCode = result.status
+      for (const [key, value] of Object.entries(result.headers || {})) {
+        res.setHeader(key, value)
+      }
+      res.setHeader('Content-Type', 'application/json')
+      res.end(JSON.stringify(result.body))
+    } catch (error) {
+      console.error(path, error)
+      res.statusCode = 500
+      res.setHeader('Content-Type', 'application/json')
+      res.end(JSON.stringify({
+        detail: error?.message || 'Could not load content.',
+      }))
+    }
+  })
 }
 
 function videosApiPlugin(env) {
@@ -60,6 +82,9 @@ function videosApiPlugin(env) {
           }))
         }
       })
+      attachJsonRoute(server, '/api/photos', runPhotos, env)
+      attachJsonRoute(server, '/api/about', runAbout, env)
+      attachJsonRoute(server, '/api/posts', runPosts, env)
     },
   }
 }

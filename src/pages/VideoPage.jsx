@@ -430,6 +430,7 @@ function IconPause() {
 }
 
 function YtThumb({ videoId, alt = '', lazy = false }) {
+  // hqdefault always exists; maxresdefault 404s for many uploads and still logs in DevTools.
   const src = youtubeThumb(videoId)
   if (!src) return null
   return (

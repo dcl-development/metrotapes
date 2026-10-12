@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import styled from 'styled-components'
-import { client, urlFor } from '../lib/sanity'
+import { fetchPosts } from '../lib/contentApi'
+import { urlFor } from '../lib/sanity'
 import { frostedPanel, frostedPanelShadow } from '../styles/frostedPanel'
 
 const Container = styled.div`
@@ -219,23 +220,7 @@ export default function Blog() {
   const postsRef = useRef([])
 
   useEffect(() => {
-    const query = `*[_type == "post"] | order(publishedAt desc) {
-      title,
-      description,
-      publishedAt,
-      media[]{
-        type,
-        alt,
-        "image": image{
-          asset
-        },
-        url,
-        videoUrl,
-        instagramPost
-      }
-    }`
-
-    client.fetch(query)
+    fetchPosts()
       .then(data => {
         setPosts(data)
         postsRef.current = data

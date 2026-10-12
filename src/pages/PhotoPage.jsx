@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { createPortal } from 'react-dom'
-import { PHOTOS_QUERY, client, imageAlt } from '../lib/sanity'
+import { fetchPhotos } from '../lib/contentApi'
+import { imageAlt } from '../lib/sanity'
 import { photoSources, stripThumb } from '../lib/sanityImage'
 import styled from 'styled-components'
 import ImageModal from '../components/ImageModal'
@@ -436,7 +437,7 @@ export default function PhotoPage() {
 
   useEffect(() => {
     let alive = true
-    client.fetch(PHOTOS_QUERY).then((data) => {
+    fetchPhotos().then((data) => {
       if (!alive) return
       if (data?.length) {
         setPhotos(data)

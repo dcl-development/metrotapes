@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import styled from 'styled-components'
-import { ABOUT_QUERY, client, imageAlt } from '../lib/sanity'
+import { fetchAbout } from '../lib/contentApi'
+import { imageAlt } from '../lib/sanity'
 import { imageSrcSet, imageUrl } from '../lib/sanityImage'
 import { PortableText } from '@portabletext/react'
 import FrostNote from '../components/FrostNote'
@@ -162,7 +163,7 @@ export default function AboutPage() {
 
   useEffect(() => {
     let alive = true
-    client.fetch(ABOUT_QUERY).then((data) => {
+    fetchAbout().then((data) => {
       if (!alive) return
       if (data) {
         setAboutContent(data)

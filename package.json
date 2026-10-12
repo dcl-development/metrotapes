@@ -11,7 +11,7 @@
     "build:studio": "npm ci --prefix studio && SANITY_STUDIO_BASEPATH=/studio npm run build --prefix studio",
     "lint": "eslint .",
     "budget": "node scripts/bundle-budget.mjs",
-    "test": "node --test src/lib/bootGate.test.js src/lib/gfxDetect.test.js src/lib/kioskHit.test.js src/lib/kioskPhase.test.js src/lib/mtaPlate.test.js src/lib/pageMount.test.js src/lib/renderLoop.test.js src/lib/routeMeta.test.js src/lib/sanityImage.test.js src/lib/stationFrame.test.js src/lib/videoCatalog.test.js server/videosGuard.test.js",
+    "test": "node --test src/lib/bootGate.test.js src/lib/gfxDetect.test.js src/lib/kioskHit.test.js src/lib/kioskPhase.test.js src/lib/mtaPlate.test.js src/lib/pageMount.test.js src/lib/renderLoop.test.js src/lib/routeMeta.test.js src/lib/sanityImage.test.js src/lib/stationFrame.test.js src/lib/videoCatalog.test.js server/videosGuard.test.js server/sanityRoutes.test.js",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -27,7 +27,7 @@
     "react-dom": "^18.3.1",
     "react-router-dom": "^7.1.3",
     "styled-components": "^6.1.14",
-    "three": "^0.185.1"
+    "three": "0.182.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

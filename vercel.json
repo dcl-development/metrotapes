@@ -1,4 +1,15 @@
 {
+  "headers": [
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    }
+  ],
   "rewrites": [
     {
       "source": "/studio",
@@ -9,7 +20,7 @@
       "destination": "/studio/index.html"
     },
     {
-      "source": "/((?!api/|studio(?:/|$)|robots\\.txt|sitemap\\.xml).*)",
+      "source": "/((?!api/|assets/|studio(?:/|$)|robots\\.txt|sitemap\\.xml).*)",
       "destination": "/index.html"
     }
   ]

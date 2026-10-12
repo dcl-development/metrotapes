@@ -1,9 +1,12 @@
+import { allowVideosRequest } from '../server/videosGuard.js'
 import { getPlaylistConfig, loadPlaylistVideos } from '../server/youtubePlaylist.js'
 
 export default async function handler(req, res) {
-  if (req.method !== 'GET') {
-    res.setHeader('Allow', 'GET')
-    return res.status(405).json({ detail: 'Method not allowed' })
+  const guard = allowVideosRequest(req)
+  if (!guard.ok) {
+    if (guard.status === 405) res.setHeader('Allow', 'GET')
+    if (guard.status === 429) res.setHeader('Retry-After', '60')
+    return res.status(guard.status).json(guard.body)
   }
 
   try {

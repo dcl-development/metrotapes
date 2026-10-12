@@ -12,6 +12,28 @@
     <meta name="theme-color" content="#1A1A1A" />
     <link rel="canonical" href="https://metrotapes.com/" />
     <link rel="icon" type="image/png" href="/favicon.png" />
+    <script>document.documentElement.classList.add('js')</script>
+    <style>
+      html, body { background: #1a1a1a; margin: 0; }
+      html.js #boot-fallback { display: none !important; }
+      #boot-fallback {
+        max-width: 36rem;
+        margin: 0 auto;
+        padding: 4.5rem 1.25rem 3rem;
+        color: #fff;
+        font-family: Helvetica, "Helvetica Neue", Arial, sans-serif;
+        line-height: 1.45;
+        letter-spacing: -0.02em;
+      }
+      #boot-fallback h1 {
+        font-size: 1.8rem;
+        font-weight: 700;
+        margin: 0 0 0.75rem;
+      }
+      #boot-fallback p { margin: 0 0 1.25rem; }
+      #boot-fallback nav { display: flex; gap: 1.25rem; }
+      #boot-fallback a { color: #fff; }
+    </style>
 
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="metrotapes" />
@@ -69,7 +91,20 @@
     </script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <article id="boot-fallback">
+        <h1>metrotapes</h1>
+        <p>
+          Photography and video by Ronnie Foreman in the New York metropolitan area.
+          Metrotapes is his portfolio: skate, snow, and other visual work.
+        </p>
+        <nav aria-label="Site">
+          <a href="/photo">Photo</a>
+          <a href="/video">Video</a>
+          <a href="/about">About</a>
+        </nav>
+      </article>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

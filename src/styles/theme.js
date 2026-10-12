@@ -37,4 +37,8 @@ export const cushy = css`
   &:active {
     transform: scale(0.94);
   }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
 `

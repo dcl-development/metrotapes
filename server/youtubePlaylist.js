@@ -45,27 +45,30 @@ export function formatIsoDuration(iso) {
   return `${minutes}:${String(seconds).padStart(2, '0')}`
 }
 
-async function fetchDurations(videoIds, apiKey) {
-  const durations = {}
+async function fetchVideoDetails(videoIds, apiKey) {
+  const details = {}
   for (let i = 0; i < videoIds.length; i += 50) {
     const chunk = videoIds.slice(i, i + 50)
     const params = new URLSearchParams({
-      part: 'contentDetails',
+      part: 'contentDetails,snippet',
       id: chunk.join(','),
       key: apiKey,
     })
     const response = await fetch(`https://www.googleapis.com/youtube/v3/videos?${params}`)
     const data = await response.json().catch(() => ({}))
     if (!response.ok) {
-      console.error('youtube durations', data?.error?.message || response.status)
+      console.error('youtube details', data?.error?.message || response.status)
       break
     }
     for (const item of data.items || []) {
-      const stamp = formatIsoDuration(item.contentDetails?.duration)
-      if (item.id && stamp) durations[item.id] = stamp
+      if (!item.id) continue
+      details[item.id] = {
+        duration: formatIsoDuration(item.contentDetails?.duration) || '',
+        publishedAt: item.snippet?.publishedAt || '',
+      }
     }
   }
-  return durations
+  return details
 }
 
 async function fetchSanityPlaylistId({ sanityProjectId, sanityDataset }) {
@@ -115,6 +118,7 @@ async function fetchFromYoutubeApi(playlistId, apiKey) {
         id: item.id || videoId,
         videoId,
         title,
+        publishedAt: item.snippet?.publishedAt || '',
       })
     }
 
@@ -147,10 +151,12 @@ async function fetchFromRss(playlistId) {
     const videoId = entry.match(/<yt:videoId>([^<]+)<\/yt:videoId>/)?.[1]
     const title = decodeXml(entry.match(/<title>([^<]+)<\/title>/)?.[1] || '')
     if (!videoId || isSkippedTitle(title)) continue
+    const publishedAt = entry.match(/<published>([^<]+)<\/published>/)?.[1] || ''
     videos.push({
       id: videoId,
       videoId,
       title: title || videoId,
+      publishedAt,
     })
   }
 
@@ -196,16 +202,20 @@ export async function loadPlaylistVideos(config) {
   let videos = result.videos
   if (config.youtubeApiKey) {
     try {
-      const durations = await fetchDurations(
+      const details = await fetchVideoDetails(
         videos.map((video) => video.videoId),
         config.youtubeApiKey,
       )
-      videos = videos.map((video) => ({
-        ...video,
-        duration: durations[video.videoId] || '',
-      }))
+      videos = videos.map((video) => {
+        const extra = details[video.videoId] || {}
+        return {
+          ...video,
+          duration: extra.duration || '',
+          publishedAt: extra.publishedAt || video.publishedAt || '',
+        }
+      })
     } catch (error) {
-      console.error('youtube durations', error)
+      console.error('youtube details', error)
     }
   }
 

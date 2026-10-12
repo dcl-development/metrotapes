@@ -1,7 +1,6 @@
 import { useEffect, useCallback } from 'react'
-import PropTypes from 'prop-types'
 import styled from 'styled-components'
-import { urlFor } from '../lib/sanity'
+import { imageAlt, urlFor } from '../lib/sanity'
 import { cushy } from '../styles/theme'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faChevronLeft, faChevronRight, faTimes } from '@fortawesome/free-solid-svg-icons'
@@ -104,9 +103,9 @@ export default function ImageModal({ isOpen, onClose, currentImage, mediaItems }
         } while (newIndex !== currentIndex && mediaItems[newIndex].type !== 'image')
 
         if (newIndex !== currentIndex && mediaItems[newIndex].type === 'image') {
-            onImageChange(mediaItems[newIndex].image)
+            onClose(mediaItems[newIndex].image)
         }
-    }, [currentIndex, mediaItems])
+    }, [currentIndex, mediaItems, onClose])
 
     const handleNext = useCallback(() => {
         if (!mediaItems) return
@@ -116,13 +115,9 @@ export default function ImageModal({ isOpen, onClose, currentImage, mediaItems }
         } while (newIndex !== currentIndex && mediaItems[newIndex].type !== 'image')
 
         if (newIndex !== currentIndex && mediaItems[newIndex].type === 'image') {
-            onImageChange(mediaItems[newIndex].image)
+            onClose(mediaItems[newIndex].image)
         }
-    }, [currentIndex, mediaItems])
-
-    const onImageChange = useCallback((image) => {
-        onClose(image)
-    }, [onClose])
+    }, [currentIndex, mediaItems, onClose])
 
     const handleKeyDown = useCallback((e) => {
         if (!isOpen) return
@@ -165,36 +160,17 @@ export default function ImageModal({ isOpen, onClose, currentImage, mediaItems }
     return (
         <Overlay $isOpen={isOpen} onClick={handleOverlayClick}>
             <ModalContent>
-                <CloseButton onClick={handleCloseClick}>
+                <CloseButton type="button" onClick={handleCloseClick} aria-label="Close photo">
                     <FontAwesomeIcon icon={faTimes} />
                 </CloseButton>
-                <NavButton $direction="prev" onClick={handlePrevious}>
+                <NavButton type="button" $direction="prev" onClick={handlePrevious} aria-label="Previous photo">
                     <FontAwesomeIcon icon={faChevronLeft} />
                 </NavButton>
-                <ModalImage src={imageUrl} alt="" />
-                <NavButton $direction="next" onClick={handleNext}>
+                <ModalImage src={imageUrl} alt={imageAlt(currentImage, 'Photograph by Ronnie Foreman')} />
+                <NavButton type="button" $direction="next" onClick={handleNext} aria-label="Next photo">
                     <FontAwesomeIcon icon={faChevronRight} />
                 </NavButton>
             </ModalContent>
         </Overlay>
     )
-}
-
-ImageModal.propTypes = {
-    isOpen: PropTypes.bool.isRequired,
-    onClose: PropTypes.func.isRequired,
-    currentImage: PropTypes.shape({
-        asset: PropTypes.shape({
-            _ref: PropTypes.string
-        })
-    }),
-    mediaItems: PropTypes.arrayOf(PropTypes.shape({
-        type: PropTypes.string.isRequired,
-        image: PropTypes.shape({
-            asset: PropTypes.shape({
-                _ref: PropTypes.string
-            })
-        }),
-        alt: PropTypes.string
-    }))
 } 

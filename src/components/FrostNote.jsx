@@ -1,5 +1,4 @@
 import styled from 'styled-components'
-import PropTypes from 'prop-types'
 import { frostedPanel, frostedPanelShadow } from '../styles/frostedPanel'
 import { font } from '../styles/theme'
 
@@ -19,8 +18,4 @@ const Note = styled.div`
 
 export default function FrostNote({ children }) {
   return <Note>{children}</Note>
-}
-
-FrostNote.propTypes = {
-  children: PropTypes.node.isRequired,
 }

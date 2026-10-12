@@ -144,7 +144,18 @@ export function Signage({ locked = false }) {
   )
 }
 
-export function WallBoards({ wall, wallHuds, immersed = false, immersedId = null, onSelect, invite = false, projectHtml = true, busyRef }) {
+export function WallBoards({
+  wall,
+  wallHuds,
+  immersed = false,
+  immersedId = null,
+  onSelect,
+  invite = false,
+  projectHtml = true,
+  reveal = true,
+  fadeIn = false,
+  busyRef,
+}) {
   const { tier } = useGfx()
   const face = wall || getWallFace()
   const boards = wallBoardList()
@@ -163,6 +174,8 @@ export function WallBoards({ wall, wallHuds, immersed = false, immersedId = null
   const ray = useMemo(() => new THREE.Raycaster(), [])
   const lastCam = useRef('')
   const lastObj = useRef({ photo: '', video: '', about: '' })
+  const htmlOpacity = useRef(fadeIn ? 0 : 1)
+  const fadeLatch = useRef(fadeIn)
   const shown = useRef({})
   const lastRayAt = useRef(0)
   const reducedMotion = useMemo(
@@ -175,7 +188,7 @@ export function WallBoards({ wall, wallHuds, immersed = false, immersedId = null
     Object.values(labels).forEach((t) => t.dispose())
   }, [labels])
 
-  useFrame((state) => {
+  useFrame((state, dt) => {
     const liveBoards = wallBoardList()
     const pulse = inviteRef.current && !reducedMotion && !immersed
       ? 0.5 + 0.5 * Math.sin(state.clock.elapsedTime * 1.2)
@@ -311,7 +324,15 @@ export function WallBoards({ wall, wallHuds, immersed = false, immersedId = null
       objEl.style.visibility = 'visible'
       anyFacing = true
     })
-    root.style.opacity = anyFacing ? '1' : '0'
+    if (fadeIn && !fadeLatch.current) htmlOpacity.current = 0
+    fadeLatch.current = fadeIn
+    const target = anyFacing && reveal ? 1 : 0
+    if (fadeIn && htmlOpacity.current < target) {
+      htmlOpacity.current = Math.min(target, htmlOpacity.current + Math.min(dt, 0.05) / 0.9)
+    } else {
+      htmlOpacity.current = target
+    }
+    root.style.opacity = htmlOpacity.current.toFixed(3)
   })
 
   const x = WALL_X + 0.04

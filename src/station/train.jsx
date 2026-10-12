@@ -285,8 +285,11 @@ export function Train({ invite = false, blockClicksRef, intro = false, rollIn = 
     roofGeo.dispose()
   }, [body, frontGeo, roofGeo])
 
-  // Park the R in the tunnel when the intro starts. rollIn (assets ready,
-  // still under the boot screen) releases the existing arrival early.
+  // A bit closer than a full departure so the intro pull-in is already
+  // underway when the station is revealed. Click-to-leave still uses the far point.
+  const introArriveZ = TRAIN_ARRIVE_Z + 20
+  // Park the R when the intro starts. rollIn (scene up, under the boot
+  // screen) releases the arrival without waiting on the asset gate.
   useLayoutEffect(() => {
     if (reducedMotion) return
     const m = motion.current
@@ -299,12 +302,12 @@ export function Train({ invite = false, blockClicksRef, intro = false, rollIn = 
       return
     }
     m.phase = 'parked'
-    m.z = TRAIN_ARRIVE_Z
+    m.z = introArriveZ
     m.speed = 0
     m.introArmed = false
-    if (root.current) root.current.position.z = TRAIN_ARRIVE_Z
+    if (root.current) root.current.position.z = introArriveZ
     setLineIndex((i) => (i === 0 ? i : 0))
-  }, [intro, reducedMotion])
+  }, [intro, introArriveZ, reducedMotion])
 
   const y = TRAIN_Y
   const trainLen = TRAIN_CAR_N * TRAIN_UNIT
@@ -337,7 +340,6 @@ export function Train({ invite = false, blockClicksRef, intro = false, rollIn = 
     if (rollIn && !reducedMotion && !m.introArmed && m.phase === 'parked') {
       m.introArmed = true
       m.phase = 'arriving'
-      m.z = TRAIN_ARRIVE_Z
       m.speed = 10
       root.current.position.z = m.z
     }

@@ -333,7 +333,7 @@ function AppContent() {
               kioskLive={atKiosk && entered}
               dimmed={arriving}
               introReady={booted && (bootLeaving || bootGone)}
-              trainRoll={booted}
+              trainRoll
               onIntroComplete={() => setEntered(true)}
               onReady={() => setSceneReady(true)}
               onFlat={() => {

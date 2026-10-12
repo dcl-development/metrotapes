@@ -94,7 +94,9 @@ function StationWorld({
         immersedId={immersedId}
         onSelect={onBoardSelect}
         invite={landscapeInvite}
-        projectHtml={!dimmed}
+        projectHtml
+        reveal={!dimmed || introReady}
+        fadeIn={dimmed}
         busyRef={busyRef}
       />
       <Train
@@ -115,7 +117,9 @@ function StationWorld({
           showBoot={showBoot}
           pickable={kioskPickable}
           onPick={onKioskPick}
-          projectHtml={!dimmed}
+          projectHtml
+          reveal={!dimmed || introReady}
+          fadeIn={dimmed}
         />
       </group>
       {windMounted ? (

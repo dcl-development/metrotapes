@@ -7,7 +7,15 @@ import { useFrame, useLoader, useThree } from '@react-three/fiber'
 import { useGfx } from '../lib/useGfx'
 import { useLayoutEffect, useMemo, useRef } from 'react'
 
-export function InfoKiosk({ hud, showBoot = true, pickable = false, onPick, projectHtml = true }) {
+export function InfoKiosk({
+  hud,
+  showBoot = true,
+  pickable = false,
+  onPick,
+  projectHtml = true,
+  reveal = true,
+  fadeIn = false,
+}) {
   const { settings } = useGfx()
   const { cabW, cabH, cabD, postH, postW, screenW, screenH, panelW, panelH } = KIOSK
   const yCab = postH + cabH / 2
@@ -18,6 +26,8 @@ export function InfoKiosk({ hud, showBoot = true, pickable = false, onPick, proj
   const pxPerMeter = panelW / screenW
   const lastCam = useRef('')
   const lastObj = useRef('')
+  const htmlOpacity = useRef(fadeIn ? 0 : 1)
+  const fadeLatch = useRef(fadeIn)
   const logoTex = useLoader(THREE.TextureLoader, '/mta-logo.jpg')
 
   useLayoutEffect(() => {
@@ -27,7 +37,7 @@ export function InfoKiosk({ hud, showBoot = true, pickable = false, onPick, proj
   }, [logoTex])
 
   // CSS-3D projection — keep transforms warm even while hidden (boot / intro).
-  useFrame(() => {
+  useFrame((_, dt) => {
     const root = hud?.current?.root
     const camEl = hud?.current?.cam
     const objEl = hud?.current?.obj
@@ -53,8 +63,16 @@ export function InfoKiosk({ hud, showBoot = true, pickable = false, onPick, proj
       lastObj.current = objXform
       objEl.style.transform = objXform
     }
-    // Reveal only when projecting + facing (avoids top-left flash on remount)
-    root.style.opacity = projectHtml && facing ? '1' : '0'
+    // Screens mount with the scene. During the intro they rise in instead of popping on at the end.
+    if (fadeIn && !fadeLatch.current) htmlOpacity.current = 0
+    fadeLatch.current = fadeIn
+    const target = projectHtml && facing && reveal ? 1 : 0
+    if (fadeIn && htmlOpacity.current < target) {
+      htmlOpacity.current = Math.min(target, htmlOpacity.current + Math.min(dt, 0.05) / 0.9)
+    } else {
+      htmlOpacity.current = target
+    }
+    root.style.opacity = htmlOpacity.current.toFixed(3)
   })
 
   const faceZ = cabD / 2

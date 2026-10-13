@@ -5,7 +5,6 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faCamera, faVideo, faBook, faBars } from '@fortawesome/free-solid-svg-icons'
 import { route, station, cushy } from '../styles/theme'
 import { useKioskLeave } from '../context/useKioskLeave'
-import { usePresentation } from '../lib/usePresentation'
 
 const HeaderContainer = styled.header`
   width: 100%;
@@ -66,25 +65,28 @@ const Title = styled.div`
 
 const ResetButton = styled.button`
   ${cushy}
-  width: 52px;
-  min-width: 48px;
-  min-height: 48px;
-  height: auto;
+  width: 48px;
+  height: 48px;
   background: none;
   border: none;
-  padding: 2px 0 0;
+  padding: 0;
   position: relative;
   flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 1px;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
 
+  @media (min-width: 768px) {
+    width: 52px;
+    height: 52px;
+  }
+
+  @media (max-width: 767px) {
+    width: 42px;
+    height: 42px;
+  }
+
   img {
-    width: 26px;
-    height: 34px;
+    width: 100%;
+    height: 100%;
     object-fit: contain;
     pointer-events: none;
     display: block;
@@ -132,12 +134,10 @@ const NavItem = styled(NavLink)`
   display: flex;
   align-items: center;
   text-decoration: none;
-  min-width: 48px;
-  min-height: 48px;
-  height: 48px;
+  height: 32px;
   position: relative;
-  overflow: visible;
-  border-radius: 24px;
+  overflow: hidden;
+  border-radius: 19px;
 
   &:focus-visible {
     outline: 2px solid rgba(255, 255, 255, 0.9);
@@ -145,14 +145,14 @@ const NavItem = styled(NavLink)`
   }
 
   @media (min-width: 768px) {
-    height: 48px;
+    height: 38px;
   }
 `
 
 const Circle = styled.div`
-  width: 48px;
-  height: 48px;
-  border-radius: 24px;
+  width: 32px;
+  height: 32px;
+  border-radius: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -170,31 +170,49 @@ const Circle = styled.div`
   }
 
   @media (max-width: 767px) {
-    width: 132px;
-    height: 48px;
+    width: 120px;
     padding: 0 1.5rem 0 1rem;
     justify-content: flex-start;
   }
 
   @media (min-width: 768px) {
-    width: auto;
+    width: 38px;
     height: 38px;
     border-radius: 19px;
-    font-size: 0.95rem;
-    padding: 0 14px 0 12px;
-    justify-content: flex-start;
+    font-size: 1.1rem;
+
+    ${NavItem}:hover &, ${NavItem}:focus-visible &, ${NavItem}.active & {
+      width: 120px;
+      padding: 0 1.5rem 0 1rem;
+      justify-content: flex-start;
+    }
   }
 `
 
 const NavText = styled.span`
   color: white;
   font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-  font-size: 1rem;
-  font-weight: 600;
-  margin-left: 8px;
-  letter-spacing: -0.02em;
-  white-space: nowrap;
+  font-size: 1.1rem;
+  font-weight: 500;
+  opacity: 0;
+  position: absolute;
+  left: 44px;
   pointer-events: none;
+  transition: opacity 0.2s ease;
+
+  @media (max-width: 767px) {
+    opacity: 1;
+  }
+
+  @media (min-width: 768px) {
+    left: 50px;
+    opacity: 0;
+    font-size: 1.2rem;
+    
+    ${NavItem}:hover &, ${NavItem}:focus-visible &, ${NavItem}.active & {
+      opacity: 1;
+    }
+  }
 `
 
 const MenuButton = styled.button`
@@ -203,10 +221,8 @@ const MenuButton = styled.button`
   background: none;
   border: none;
   color: rgba(255, 255, 255, 0.8);
-  min-width: 48px;
-  min-height: 48px;
   padding: 8px;
-  margin-right: 4px;
+  margin-right: 12px;
   transition: transform 0.2s ease, color 0.2s ease;
 
   &:hover {
@@ -233,64 +249,23 @@ const TitleSection = styled.div`
   align-items: center;
 `
 
-const ResetWord = styled.span`
-  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #fff;
-  line-height: 1;
-`
-
-const QualityButton = styled.button`
-  ${cushy}
-  min-width: 48px;
-  min-height: 48px;
-  padding: 0 0.7rem;
-  background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  border-radius: 2px;
-  color: white;
-  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: lowercase;
-
-  &:focus-visible {
-    outline: 2px solid rgba(255, 255, 255, 0.9);
-    outline-offset: 3px;
-  }
-`
-
 export default function Header() {
   const [isOpen, setIsOpen] = useState(false)
-  const [isMobile, setIsMobile] = useState(
-    () => window.matchMedia('(max-width: 767px)').matches,
-  )
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
   const navigate = useNavigate()
   const kioskLeave = useKioskLeave()
-  const { mode, setMode } = usePresentation()
 
   useEffect(() => {
-    const mq = window.matchMedia('(max-width: 767px)')
-    const apply = () => {
-      const mobile = mq.matches
+    const handleResize = () => {
+      const mobile = window.innerWidth < 768
       setIsMobile(mobile)
-      if (!mobile) setIsOpen(false)
+      if (!mobile) {
+        setIsOpen(false)
+      }
     }
-    window.addEventListener('resize', apply)
-    window.addEventListener('orientationchange', apply)
-    mq.addEventListener('change', apply)
-    const vv = window.visualViewport
-    vv?.addEventListener('resize', apply)
-    return () => {
-      window.removeEventListener('resize', apply)
-      window.removeEventListener('orientationchange', apply)
-      mq.removeEventListener('change', apply)
-      vv?.removeEventListener('resize', apply)
-    }
+
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
   }, [])
 
   const handleTitleClick = (e) => {
@@ -316,25 +291,28 @@ export default function Header() {
   }
 
   const handleReset = () => {
-    if (kioskLeave?.goHome?.()) return
+    if (kioskLeave?.replay) {
+      kioskLeave.replay()
+      return
+    }
     navigate('/')
   }
 
   const renderNavItems = () => (
     <>
-      <NavItem to="/photo" aria-label="Photo" title="Photo" onClick={handleNavClick('/photo')}>
+      <NavItem to="/photo" aria-label="Photo" onClick={handleNavClick('/photo')}>
         <Circle color={route.photo}>
           <FontAwesomeIcon icon={faCamera} />
         </Circle>
         <NavText>photo</NavText>
       </NavItem>
-      <NavItem to="/video" aria-label="Video" title="Video" onClick={handleNavClick('/video')}>
+      <NavItem to="/video" aria-label="Video" onClick={handleNavClick('/video')}>
         <Circle color={route.video}>
           <FontAwesomeIcon icon={faVideo} />
         </Circle>
         <NavText>video</NavText>
       </NavItem>
-      <NavItem to="/about" aria-label="About" title="About" onClick={handleNavClick('/about')}>
+      <NavItem to="/about" aria-label="About" onClick={handleNavClick('/about')}>
         <Circle color={route.about}>
           <FontAwesomeIcon icon={faBook} />
         </Circle>
@@ -353,14 +331,13 @@ export default function Header() {
                 type="button"
                 onClick={handleMenuToggle}
                 aria-label={isOpen ? 'Close menu' : 'Open menu'}
-                title={isOpen ? 'Close menu' : 'Menu'}
                 aria-expanded={isOpen}
                 aria-controls="site-nav"
               >
                 <FontAwesomeIcon icon={faBars} size="lg" />
               </MenuButton>
             )}
-            <TitleWrapper type="button" onClick={handleTitleClick} aria-label="metrotapes, home">
+            <TitleWrapper type="button" onClick={handleTitleClick} aria-label="Home">
               <TitleGroup>
                 <Title>metrotapes</Title>
               </TitleGroup>
@@ -372,17 +349,8 @@ export default function Header() {
                 {renderNavItems()}
               </NavList>
             )}
-            <QualityButton
-              type="button"
-              aria-pressed={mode === 'full'}
-              title={mode === 'full' ? 'Full station view' : 'Flat view'}
-              onClick={() => setMode(mode === 'full' ? 'lite' : 'full')}
-            >
-              {mode === 'full' ? 'full' : 'lite'}
-            </QualityButton>
-            <ResetButton type="button" onClick={handleReset} aria-label="Reset to entrance" title="Reset to entrance">
-              <img src="/lamp.png" alt="" width={160} height={267} />
-              <ResetWord>reset</ResetWord>
+            <ResetButton type="button" onClick={handleReset} aria-label="Reset to entrance">
+              <img src="/lamp.png" alt="" />
             </ResetButton>
           </RightCluster>
         </TopSection>

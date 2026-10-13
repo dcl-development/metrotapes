@@ -363,10 +363,15 @@ export function StageFit() {
   useEffect(() => {
     const el = gl.domElement?.parentElement
     if (!el) return undefined
+    let lastW = 0
+    let lastH = 0
     const apply = () => {
       const w = el.clientWidth
       const h = el.clientHeight
       if (w < 2 || h < 2) return
+      if (w === lastW && h === lastH) return
+      lastW = w
+      lastH = h
       setSize(w, h, false)
       invalidate()
     }

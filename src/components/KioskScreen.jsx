@@ -5,7 +5,6 @@ import { font, route } from '../styles/theme'
 import MetroMachineFace from './MetroMachineFace'
 import { KIOSK_PANEL_W, KIOSK_PANEL_H, KIOSK_RADIUS_PX } from '../lib/kioskSize'
 import { useKioskLeave } from '../context/useKioskLeave'
-import { loadVideoCatalog, youtubeThumb } from '../lib/videoCatalog'
 
 const Panel = styled.div`
   width: ${KIOSK_PANEL_W}px;
@@ -35,12 +34,6 @@ const Brand = styled.div`
   min-height: 20px;
   overflow: hidden;
   flex: 0 0 auto;
-
-  @media (max-width: 767px) {
-    font-size: 15px;
-    min-height: 28px;
-    padding: 8px 0 6px;
-  }
 `
 
 const dropLetter = keyframes`
@@ -113,11 +106,6 @@ const ScreenHead = styled.div`
   color: rgba(255, 255, 255, 0.85);
   font-variant-numeric: tabular-nums;
   flex: 0 0 auto;
-
-  @media (max-width: 767px) {
-    font-size: 15px;
-    padding: 4px 12px;
-  }
 `
 
 const Weather = styled.div`
@@ -149,11 +137,6 @@ const SectionLabel = styled.div`
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.5);
   flex: 0 0 auto;
-
-  @media (max-width: 767px) {
-    font-size: 14px;
-    padding: 6px 14px 4px;
-  }
 `
 
 const RecentList = styled.div`
@@ -182,10 +165,6 @@ const Clip = styled.button`
 
   &:hover { opacity: 0.92; }
   &:active { opacity: 0.85; }
-
-  @media (max-width: 767px) {
-    min-height: 88px;
-  }
 `
 
 const Thumb = styled.img`
@@ -226,11 +205,6 @@ const ClipMeta = styled.div`
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-
-  @media (max-width: 767px) {
-    font-size: 15px;
-    padding: 16px 6px 6px;
-  }
 `
 
 const ClipFrame = styled.iframe`
@@ -242,11 +216,8 @@ const ClipFrame = styled.iframe`
 `
 
 const More = styled(Link)`
-  display: flex;
-  align-items: center;
-  min-height: 48px;
+  display: block;
   margin: 0 14px 4px;
-  padding: 0 4px;
   flex: 0 0 auto;
   font-size: 10px;
   font-weight: 700;
@@ -260,13 +231,6 @@ const More = styled(Link)`
 
   &:visited { color: rgba(255, 255, 255, 0.45); }
   &:hover { color: rgba(255, 255, 255, 0.75); }
-
-  @media (max-width: 767px) {
-    min-height: 72px;
-    margin-bottom: 6px;
-    font-size: 16px;
-    letter-spacing: 0.04em;
-  }
 `
 
 const Destinations = styled.div`
@@ -304,12 +268,6 @@ const DestBtn = styled.button`
 
   &:hover { background-color: #101012; }
   &:active { background-color: #161618; }
-
-  @media (max-width: 767px) {
-    min-height: 80px;
-    gap: 12px;
-    padding: 8px 10px 8px 12px;
-  }
 `
 
 const DestBullet = styled.span`
@@ -326,12 +284,6 @@ const DestBullet = styled.span`
     ${(p) => p.$color};
   background-size: 3.5px 3.5px, auto;
   box-shadow: 0 0 10px ${(p) => p.$color}99;
-
-  @media (max-width: 767px) {
-    flex-basis: 48px;
-    width: 48px;
-    height: 48px;
-  }
 `
 
 const PITCH = 4
@@ -382,25 +334,7 @@ function LedDots({ rows, color, pitch = PITCH, r = LED_R }) {
   )
 }
 
-function useNarrowScreen() {
-  const [narrow, setNarrow] = useState(
-    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches,
-  )
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 767px)')
-    const apply = () => setNarrow(mq.matches)
-    apply()
-    mq.addEventListener('change', apply)
-    window.addEventListener('resize', apply)
-    return () => {
-      mq.removeEventListener('change', apply)
-      window.removeEventListener('resize', apply)
-    }
-  }, [])
-  return narrow
-}
-
-function LedWord({ text, pitch = PITCH, r = LED_R }) {
+function LedWord({ text }) {
   const letters = text.toUpperCase().split('')
   const cols = letters.reduce((n, ch, i) => {
     const g = GLYPHS[ch]
@@ -418,7 +352,7 @@ function LedWord({ text, pitch = PITCH, r = LED_R }) {
     }
     if (i < letters.length - 1) x += 1
   })
-  return <LedDots rows={rows} color="#f4f6f8" pitch={pitch} r={r} />
+  return <LedDots rows={rows} color="#f4f6f8" />
 }
 
 const DESTINATIONS = [
@@ -508,10 +442,15 @@ function useRecentVideos() {
   const [clips, setClips] = useState(null)
   useEffect(() => {
     let alive = true
-    loadVideoCatalog().then((entry) => {
-      if (!alive) return
-      setClips((entry.data || []).slice(0, 3))
-    })
+    fetch('/api/videos')
+      .then((res) => res.json())
+      .then((data) => {
+        if (!alive) return
+        setClips((data.videos || []).slice(0, 3))
+      })
+      .catch(() => {
+        if (alive) setClips([])
+      })
     return () => { alive = false }
   }, [])
   return clips
@@ -520,7 +459,6 @@ function useRecentVideos() {
 export default function KioskScreen({ live = false }) {
   const navigate = useNavigate()
   const kioskLeave = useKioskLeave()
-  const narrow = useNarrowScreen()
   const time = useClock()
   const weather = useNycWeather()
   const clips = useRecentVideos()
@@ -582,10 +520,8 @@ export default function KioskScreen({ live = false }) {
               ) : (
                 <>
                   <Thumb
-                    src={youtubeThumb(video.videoId)}
+                    src={`https://i.ytimg.com/vi/${video.videoId}/hqdefault.jpg`}
                     alt=""
-                    width={480}
-                    height={360}
                   />
                   <ClipMeta>{video.title}</ClipMeta>
                 </>
@@ -596,7 +532,6 @@ export default function KioskScreen({ live = false }) {
       </RecentList>
       <More
         to="/video"
-        data-kiosk-to="/video"
         onClick={(e) => {
           e.preventDefault()
           goTo('/video')
@@ -610,7 +545,6 @@ export default function KioskScreen({ live = false }) {
           <DestBtn
             key={row.to}
             type="button"
-            data-kiosk-to={row.to}
             onClick={() => goTo(row.to)}
             aria-label={row.title}
           >
@@ -622,7 +556,7 @@ export default function KioskScreen({ live = false }) {
                 r={1.15}
               />
             </DestBullet>
-            <LedWord text={row.title} pitch={narrow ? 6 : PITCH} r={narrow ? 2 : LED_R} />
+            <LedWord text={row.title} />
           </DestBtn>
         ))}
       </Destinations>

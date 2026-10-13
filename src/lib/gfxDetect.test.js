@@ -5,22 +5,18 @@ import {
   classifyGpu,
   decideQualityStep,
   detectGfxTier,
+  dprCapAfterDrop,
   stepDown,
   stepUp,
 } from './gfxDetect.js'
 
-test('low stays light, mid and high paint sharper, and bloom stays high-only', () => {
-  assert.equal(GFX.low.mapPx, 256)
-  assert.equal(GFX.low.cheapGlow, true)
+test('low stays light and bloom stays high-only', () => {
   assert.equal(GFX.low.bloom, false)
-  assert.ok(GFX.mid.mapPx > GFX.low.mapPx)
-  assert.equal(GFX.mid.cheapGlow, true)
+  assert.equal(GFX.low.trainFront, 512)
   assert.equal(GFX.mid.bloom, false)
-  assert.ok(GFX.high.mapPx > GFX.mid.mapPx)
-  assert.equal(GFX.high.cheapGlow, false)
+  assert.equal(GFX.mid.trainFront, 768)
   assert.equal(GFX.high.bloom, true)
-  assert.ok(GFX.high.aniso >= GFX.mid.aniso)
-  assert.ok(GFX.mid.aniso > GFX.low.aniso)
+  assert.equal(GFX.high.trainFront, 1024)
 })
 
 test('software, reduced motion, and data saver stay low and locked', () => {
@@ -72,11 +68,11 @@ test('high is opt-in and stays the ceiling', () => {
   assert.equal(detectGfxTier({ forced: 'low' }).locked, true)
 })
 
-test('promote stays inside the ceiling and the hysteresis window', () => {
+test('a recovered tier does not step back up', () => {
   const healthy = { fps: 58, hitchRate: 0.1, sinceDrop: 99, sincePromote: 99, cool: 0 }
   assert.equal(
     decideQualityStep({ ...healthy, tier: 'low', ceiling: 'mid', canSoften: false }).action,
-    'promote',
+    'hold',
   )
   assert.equal(
     decideQualityStep({ ...healthy, tier: 'mid', ceiling: 'mid', canSoften: false }).action,
@@ -171,4 +167,10 @@ test('drops still happen, and a recent promote ignores mild jank', () => {
   assert.equal(stepDown('high'), 'mid')
   assert.equal(stepUp('low'), 'mid')
   assert.equal(stepUp('mid'), 'high')
+})
+
+test('a drop never raises the pixel cap', () => {
+  assert.equal(dprCapAfterDrop(1, 1.5), 1)
+  assert.equal(dprCapAfterDrop(1.25, 1.5), 1.25)
+  assert.equal(dprCapAfterDrop(1.5, 1.25), 1.25)
 })

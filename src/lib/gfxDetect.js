@@ -22,14 +22,6 @@ export const GFX = {
     kioskFill: 8.4,
     fog: 0.022,
     idleMotion: false,
-    mapPx: 256,
-    ceilingPx: 512,
-    columnPx: 64,
-    aniso: 4,
-    propPx: 256,
-    woodPx: 512,
-    labelPx: 512,
-    cheapGlow: true,
   },
   mid: {
     dpr: [1, 1.25],
@@ -42,8 +34,8 @@ export const GFX = {
     extras: true,
     lights: 2,
     physicalWalls: false,
-    trainFront: 1024,
-    trainSide: [2048, 512],
+    trainFront: 768,
+    trainSide: [1536, 384],
     powerPreference: 'low-power',
     exposure: 1.52,
     hemi: 0.92,
@@ -51,14 +43,6 @@ export const GFX = {
     tube: 9.2,
     kioskFill: 8.2,
     fog: 0.02,
-    mapPx: 512,
-    ceilingPx: 768,
-    columnPx: 128,
-    aniso: 8,
-    propPx: 512,
-    woodPx: 768,
-    labelPx: 1024,
-    cheapGlow: true,
   },
   high: {
     dpr: [1, 1.5],
@@ -71,8 +55,8 @@ export const GFX = {
     extras: true,
     lights: 3,
     physicalWalls: true,
-    trainFront: 1280,
-    trainSide: [2560, 640],
+    trainFront: 1024,
+    trainSide: [2048, 512],
     powerPreference: 'high-performance',
     exposure: 1.32,
     hemi: 0.52,
@@ -80,14 +64,6 @@ export const GFX = {
     tube: 5.4,
     kioskFill: 8.2,
     fog: 0.024,
-    mapPx: 1024,
-    ceilingPx: 1024,
-    columnPx: 160,
-    aniso: 16,
-    propPx: 768,
-    woodPx: 1024,
-    labelPx: 1536,
-    cheapGlow: false,
   },
 }
 
@@ -140,6 +116,15 @@ export function stepUp(tier) {
   if (tier === 'low') return 'mid'
   if (tier === 'mid') return 'high'
   return 'high'
+}
+
+/** A drop may tighten the pixel cap. It must not open a higher one. */
+export function dprCapAfterDrop(currentCap, nextTierCap) {
+  const from = Number(currentCap)
+  const to = Number(nextTierCap)
+  if (!Number.isFinite(from)) return to
+  if (!Number.isFinite(to)) return from
+  return Math.min(from, to)
 }
 
 /**
@@ -251,10 +236,10 @@ export function detectGfxTier({
 }
 
 /**
- * One measured window. Soften DPR, then drop. Promote only with headroom,
- * never above the ceiling, and not inside the hysteresis window.
- * A pessimistic GPU probe may raise the ceiling low → mid on the first
- * healthy sample (`warmCorrectable`).
+ * One measured window. Soften DPR, then drop. Do not step back up to a
+ * tier that failed — that bounce is the tracks-view flicker.
+ * A pessimistic GPU probe may still raise the ceiling low → mid once
+ * (`warmCorrectable`).
  */
 export function decideQualityStep({
   fps,
@@ -272,11 +257,9 @@ export function decideQualityStep({
   const catastrophic = fps < FPS_CATASTROPHE
   const healthy = fps > FPS_PROMOTE && hitchRate <= HITCH_PROMOTE_MAX
   const next = stepUp(tier)
-  const withinCeiling = tierRank(next) <= tierRank(ceiling)
   const warmLift = Boolean(
     warmCorrectable && tier === 'low' && ceiling === 'low' && next === 'mid',
   )
-  const canPromote = !locked && next !== tier && (withinCeiling || warmLift)
 
   if (cool > 0 && !catastrophic) {
     return { action: 'hold', warmCorrectable }
@@ -289,11 +272,14 @@ export function decideQualityStep({
     return { action: 'hold', warmCorrectable: false }
   }
 
-  if (healthy && canPromote && sinceDrop >= PROMOTE_AFTER_DROP_SEC) {
+  // Only the one-shot probe correction may step up. Promoting back to a
+  // tier that just failed is the tracks-view flash: darker, then sharper,
+  // then a higher pixel cap when the drop clears the DPR limit.
+  if (healthy && warmLift && sinceDrop >= PROMOTE_AFTER_DROP_SEC) {
     return {
       action: 'promote',
       cool: 4,
-      raiseCeiling: warmLift,
+      raiseCeiling: true,
       warmCorrectable: false,
     }
   }

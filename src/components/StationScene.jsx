@@ -6,7 +6,7 @@ import { COL, POVS, isLandscapeZoom, isWallPov, ndcXFromClient, ndcXFromEvent, r
 import { CameraRig } from '../station/camera'
 import { Canvas } from '@react-three/fiber'
 import { ChromeBar, ChromeBtn, EdgeHit, GfxWatch, HomeIcon, IdlePump, KioskFrame, KioskGlass, KioskGlassDirt, Layer, LivePhotoIcon, Overlay, OverlayCam, OverlayObj, PanArrow, ReadyPing, SceneWrap, StageFit, StationFilm, ToneMap, WallFrame } from '../station/chrome'
-import { FloorTrash, TrackTrash, WindCard } from '../station/litter'
+import { FloorTrash, INTRO_CAM, TrackTrash, WindCard } from '../station/litter'
 import { InfoKiosk } from '../station/kiosk'
 import { Signage, WallBoards } from '../station/walls'
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -38,6 +38,7 @@ function StationWorld({
   dimmed,
   onArrive,
   introReady,
+  trainRoll = false,
   onIntroDone,
   showBoot = true,
   immersed = false,
@@ -50,8 +51,8 @@ function StationWorld({
   watchArmed = true,
 }) {
   const landscapeInvite = isLandscapeZoom(kioskZoom) && !dimmed
-  const { settings, startSettings } = useGfx()
-  const maps = useStationMaps(startSettings)
+  const { settings } = useGfx()
+  const maps = useStationMaps()
   const reducedMotion = useMemo(
     () => typeof window !== 'undefined'
       && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
@@ -94,9 +95,16 @@ function StationWorld({
         onSelect={onBoardSelect}
         invite={landscapeInvite}
         projectHtml
+        reveal={!dimmed || introReady}
+        fadeIn={dimmed}
         busyRef={busyRef}
       />
-      <Train invite={landscapeInvite} blockClicksRef={blockClicksRef} />
+      <Train
+        invite={landscapeInvite}
+        blockClicksRef={blockClicksRef}
+        intro={dimmed}
+        rollIn={Boolean(dimmed && trainRoll)}
+      />
       {settings.extras ? (
         <Suspense fallback={null}>
           <LazyTrainSteam />
@@ -110,6 +118,8 @@ function StationWorld({
           pickable={kioskPickable}
           onPick={onKioskPick}
           projectHtml
+          reveal={!dimmed || introReady}
+          fadeIn={dimmed}
         />
       </group>
       {windMounted ? (
@@ -132,12 +142,13 @@ export default function StationScene({
   kioskLive = true,
   dimmed = false,
   introReady = false,
+  trainRoll = false,
   onIntroComplete,
   onReady,
   onFlat,
   onArrive,
   leaveRef,
-  bindSlot,
+  wallPages = null,
   wallInteractive = false,
   headerH = 64,
 }) {
@@ -163,15 +174,6 @@ export default function StationScene({
     cam: null,
     obj: { photo: null, video: null, about: null },
   })
-  // A fresh inline ref would detach and reattach every render, and bindSlot
-  // sets state, which is an update loop on wall routes.
-  const slotBinders = useRef({})
-  const binderFor = (id) => {
-    if (!slotBinders.current[id]) {
-      slotBinders.current[id] = (node) => bindSlot?.(id, node)
-    }
-    return slotBinders.current[id]
-  }
   const navigate = useNavigate()
   const location = useLocation()
   const pov = isWallPov(shot) || shot === 'kiosk' ? shot : (POVS[shot] ? shot : 'kiosk')
@@ -205,8 +207,9 @@ export default function StationScene({
   // Menu accepts clicks only after the close-up camera has settled.
   // Otherwise the click that zooms in also hits a destination button.
   const screenLive = kioskLive && zap === 'open' && kioskZoom === 'close' && camSettled
-  // Synchronous: the follow-up click from a kiosk pick happens before re-render.
-  blockClicksRef.current = pov === 'kiosk' && kioskZoom === 'close'
+  // The zoom-in click is one gesture: it must not also depart the train.
+  // A parked home view still has to hover and click the train itself.
+  blockClicksRef.current = pov === 'kiosk' && kioskZoom === 'close' && !camSettled
   const pageView = immersed && isWallPov(pov)
 
   useEffect(() => {
@@ -229,7 +232,18 @@ export default function StationScene({
   }, [pov, kioskZoom])
 
   useEffect(() => {
-    const start = () => setFlying(true)
+    let w = window.innerWidth
+    let h = window.innerHeight
+    // A scrollbar twitch and visualViewport both emit resize. Restarting
+    // the flight on those flips frameloop and the pixel budget.
+    const start = () => {
+      const nw = window.innerWidth
+      const nh = window.innerHeight
+      if (nw === w && nh === h) return
+      w = nw
+      h = nh
+      setFlying(true)
+    }
     window.addEventListener('resize', start)
     window.addEventListener('orientationchange', start)
     const vv = window.visualViewport
@@ -561,8 +575,8 @@ export default function StationScene({
             dpr={settings.dpr}
             gl={glConfig}
             camera={{
-              position: dimmed ? [0.2, 1.95, 3.6] : resolvePov(pov, undefined, kioskZoom).position,
-              fov: dimmed ? 42 : resolvePov(pov, undefined, kioskZoom).fov,
+              position: dimmed ? INTRO_CAM.pos : resolvePov(pov, undefined, kioskZoom).position,
+              fov: dimmed ? INTRO_CAM.fov : resolvePov(pov, undefined, kioskZoom).fov,
               near: 0.1,
               far: 90,
             }}
@@ -570,7 +584,7 @@ export default function StationScene({
             gl.setClearColor(COL.clear, 1)
             gl.toneMapping = THREE.ACESFilmicToneMapping
             gl.toneMappingExposure = settings.exposure
-              if (dimmed) camera.lookAt(0.15, 1.85, 1.0)
+              if (dimmed) camera.lookAt(...INTRO_CAM.look)
               else camera.lookAt(...resolvePov(pov, undefined, kioskZoom).lookAt)
             gl.domElement.addEventListener('webglcontextlost', (event) => {
               event.preventDefault()
@@ -593,6 +607,7 @@ export default function StationScene({
               dimmed={dimmed}
               onArrive={handleArrive}
               introReady={introReady}
+              trainRoll={trainRoll}
               onIntroDone={handleIntroDone}
               showBoot={zap === 'closed' || zap === 'closing'}
               immersed={pageView}
@@ -627,7 +642,7 @@ export default function StationScene({
               </OverlayObj>
             </OverlayCam>
           </Overlay>
-        {isWallPov(pov) ? (
+        {wallPages ? (
           <Overlay data-wall-hud="root" ref={(n) => { wallHud.current.root = n }} $page={pageView}>
             <OverlayCam data-wall-hud="cam" ref={(n) => { wallHud.current.cam = n }} $page={pageView}>
               {wallBoardList().map((b) => (
@@ -651,12 +666,7 @@ export default function StationScene({
                     $h={wall.panelH}
                     $soft={settings.softScreens}
                   >
-                    {pov === b.id ? (
-                      <div
-                        ref={binderFor(b.id)}
-                        style={{ position: 'absolute', inset: 0 }}
-                      />
-                    ) : null}
+                    {wallPages[b.id]}
                     {pageView && pov === b.id ? null : (
                       <>
                         <KioskGlass aria-hidden />
@@ -695,6 +705,18 @@ export default function StationScene({
       ) : null}
       {!dimmed && (isWallPov(pov) || (kioskLive && pov === 'kiosk' && (landscape || (kioskZoom === 'close' && kioskArrived && zap === 'open')))) ? (
         <ChromeBar $dock={pageView}>
+          {kioskZoom === 'right' ? (
+            <ChromeBtn
+              type="button"
+              aria-label="Look left"
+              onClick={() => {
+                setCamSettled(false)
+                setKioskZoom('left')
+              }}
+            >
+              <PanArrow dir="left" />
+            </ChromeBtn>
+          ) : null}
           {landscape ? (
             <ChromeBtn
               type="button"
@@ -708,31 +730,28 @@ export default function StationScene({
               <HomeIcon />
             </ChromeBtn>
           ) : null}
-          <ChromeBtn
-            type="button"
-            aria-label={isWallPov(pov) || kioskZoom === 'close' ? 'Zoom out' : (kioskZoom === 'right' ? 'Look left' : 'Look right')}
-            onClick={() => {
-              if (isWallPov(pov)) {
-                setCamSettled(false)
-                setKioskZoom('left')
-                navigate('/')
-                return
-              }
-              if (kioskZoom === 'close') {
+          {kioskZoom === 'right' ? null : (
+            <ChromeBtn
+              type="button"
+              aria-label={isWallPov(pov) || kioskZoom === 'close' ? 'Zoom out' : 'Look right'}
+              onClick={() => {
+                if (isWallPov(pov)) {
+                  setCamSettled(false)
+                  setKioskZoom('left')
+                  navigate('/')
+                  return
+                }
                 setCamSettled(false)
                 setKioskZoom('right')
-                return
-              }
-              setCamSettled(false)
-              setKioskZoom((z) => (z === 'right' ? 'left' : 'right'))
-            }}
-          >
-            {isWallPov(pov) || kioskZoom === 'close' ? (
-              <LivePhotoIcon />
-            ) : (
-              <PanArrow dir={kioskZoom === 'right' ? 'left' : 'right'} />
-            )}
-          </ChromeBtn>
+              }}
+            >
+              {isWallPov(pov) || kioskZoom === 'close' ? (
+                <LivePhotoIcon />
+              ) : (
+                <PanArrow dir="right" />
+              )}
+            </ChromeBtn>
+          )}
         </ChromeBar>
       ) : null}
     </Layer>

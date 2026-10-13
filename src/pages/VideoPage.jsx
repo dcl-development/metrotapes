@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import styled, { keyframes, css } from 'styled-components'
 import FrostNote from '../components/FrostNote'
-import StationPlate from '../components/StationPlate'
 import { loadVideoCatalog, youtubeThumb } from '../lib/videoCatalog'
 import { font, route } from '../styles/theme'
 
@@ -124,7 +123,7 @@ const Time = styled.span`
   padding: 2px 6px;
   background: rgba(0, 0, 0, 0.88);
   color: #fff;
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
@@ -180,7 +179,7 @@ const Status = styled.div`
   align-items: center;
   gap: 7px;
   margin-bottom: 5px;
-  font-size: 0.78rem;
+  font-size: 0.62rem;
   font-weight: 800;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -239,10 +238,8 @@ const Transport = styled.div`
 `
 
 const TwBtn = styled.button`
-  width: 48px;
-  height: 48px;
-  min-width: 48px;
-  min-height: 48px;
+  width: 40px;
+  height: 40px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -296,7 +293,7 @@ const QueueHead = styled.div`
 
 const QueueLabel = styled.h2`
   margin: 0;
-  font-size: 0.8rem;
+  font-size: 0.68rem;
   font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -304,7 +301,7 @@ const QueueLabel = styled.h2`
 `
 
 const QueueCount = styled.span`
-  font-size: 0.8rem;
+  font-size: 0.68rem;
   font-weight: 700;
   color: rgba(255, 255, 255, 0.3);
   font-variant-numeric: tabular-nums;
@@ -351,7 +348,7 @@ const Clip = styled.button`
 `
 
 const Index = styled.span`
-  font-size: 0.8rem;
+  font-size: 0.68rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
@@ -437,8 +434,6 @@ function YtThumb({ videoId, alt = '', lazy = false }) {
     <Thumb
       src={src}
       alt={alt}
-      width={480}
-      height={360}
       loading={lazy ? 'lazy' : 'eager'}
     />
   )
@@ -496,7 +491,6 @@ export default function VideoPage() {
 
   return (
     <Container ref={scroller} data-wall-page="video">
-      <StationPlate letter="V" title="Video" color={GREEN} />
       {status === 'loading' && <FrostNote>Loading playlist…</FrostNote>}
       {(status === 'empty' || status === 'error') && (
         <FrostNote>

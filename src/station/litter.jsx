@@ -3,6 +3,7 @@ import * as THREE from 'three'
 import { TRACK_W, TRACK_X0, TRACK_Y, resolvePov } from './space'
 import { useFrame, useLoader, useThree } from '@react-three/fiber'
 import { useLayoutEffect, useMemo, useRef } from 'react'
+import { useGfx } from '../lib/useGfx'
 
 /** Cheap NYC platform litter — scribbled notes, receipts, crumpled bags. */
 function mulberry32(seed) {
@@ -100,13 +101,185 @@ const TRASH_CARD = {
 }
 
 /**
- * Intro: one continuous MetroCard flight onto the trash (no wait→fly snap).
- * Card outruns the camera so it stays in frame; intro ends only after both settle.
- * Flutter is cheap trig only (phone-safe), not a physics sim.
+ * `/metrocard.png` is 800×506 with a transparent chamfer in the top-right.
+ * Cut the mesh to that outline so the hole is empty air, not a dark rectangle.
+ */
+const CARD_NOTCH = { u: 718 / 800, v: 82 / 506 }
+/** A couple of millimeters of stock, scaled off the card's 85.6mm long edge. */
+const CARD_THICK = TRASH_CARD.size[0] * (2 / 85.6)
+
+/** First point of the flight. Camera sits on the −X side, looking toward the tracks. */
+const FLIGHT_START = [1.85, 1.72, -1.55]
+const CAM_FOLLOW = [-1.35, 0.28, 0.2]
+
+/**
+ * Close-up on the open track side (+X). The wall boards and kiosk screen
+ * sit the other way, so the spinning card has empty space behind it.
+ */
+export const INTRO_CAM = {
+  pos: [
+    FLIGHT_START[0] + CAM_FOLLOW[0],
+    FLIGHT_START[1] + CAM_FOLLOW[1],
+    FLIGHT_START[2] + CAM_FOLLOW[2],
+  ],
+  look: FLIGHT_START,
+  fov: 28,
+}
+
+/** ~3mm corner radius on the real 85.6mm card, matched to the PNG. */
+const CARD_CORNER = 28 / 800
+
+function roundedNotchShape(w, h) {
+  const hw = w / 2
+  const hh = h / 2
+  const r = w * CARD_CORNER
+  const notchX = -hw + CARD_NOTCH.u * w
+  const notchY = hh - CARD_NOTCH.v * h
+  const shape = new THREE.Shape()
+  shape.moveTo(-hw + r, -hh)
+  shape.lineTo(hw - r, -hh)
+  shape.absarc(hw - r, -hh + r, r, -Math.PI / 2, 0, false)
+  shape.lineTo(hw, notchY)
+  shape.lineTo(notchX, hh)
+  shape.lineTo(-hw + r, hh)
+  shape.absarc(-hw + r, hh - r, r, Math.PI / 2, Math.PI, false)
+  shape.lineTo(-hw, -hh + r)
+  shape.absarc(-hw + r, -hh + r, r, Math.PI, Math.PI * 3 / 2, false)
+  return shape
+}
+
+function createNotchedCardGeometry() {
+  const [w, h] = TRASH_CARD.size
+  const hw = w / 2
+  const hh = h / 2
+  const geo = new THREE.ExtrudeGeometry(roundedNotchShape(w, h), {
+    depth: CARD_THICK,
+    bevelEnabled: false,
+    steps: 1,
+    curveSegments: 8,
+  })
+  const pos = geo.attributes.position
+  const uv = geo.attributes.uv
+  for (let i = 0; i < pos.count; i += 1) {
+    const x = pos.getX(i)
+    const y = pos.getY(i)
+    const u = (x + hw) / w
+    const v = (y + hh) / h
+    // z = 0 is the back cap. Mirror it so the art still reads from behind.
+    uv.setXY(i, pos.getZ(i) < CARD_THICK * 0.5 ? 1 - u : u, v)
+  }
+  uv.needsUpdate = true
+  geo.translate(0, 0, -CARD_THICK / 2)
+  geo.computeVertexNormals()
+  return geo
+}
+
+/** Rest pose is `base`. A small bow along the long edge; the notch stays a hole. */
+function writeCardBend(geometry, base, amount) {
+  const arr = geometry.attributes.position.array
+  const hw = TRASH_CARD.size[0] * 0.5
+  const hh = TRASH_CARD.size[1] * 0.5
+  for (let i = 0; i < arr.length; i += 3) {
+    const x = base[i]
+    const y = base[i + 1]
+    const along = x / hw
+    const across = y / hh
+    const bow = (1 - along * along) * (1 - 0.28 * across * across)
+    arr[i] = x
+    arr[i + 1] = y
+    arr[i + 2] = base[i + 2] + bow * amount
+  }
+  geometry.attributes.position.needsUpdate = true
+  geometry.computeVertexNormals()
+  geometry.computeBoundingSphere()
+}
+
+function restoreCardBend(geometry, base) {
+  geometry.attributes.position.array.set(base)
+  geometry.attributes.position.needsUpdate = true
+  geometry.computeVertexNormals()
+  geometry.computeBoundingSphere()
+}
+
+/** Zero alpha outside the rounded, notched outline so square tips cannot fill in. */
+function punchCardAlpha(texture) {
+  const img = texture.image
+  const w = img?.width
+  const h = img?.height
+  if (!w || !h) return texture
+  const canvas = document.createElement('canvas')
+  canvas.width = w
+  canvas.height = h
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+  ctx.drawImage(img, 0, 0, w, h)
+  const image = ctx.getImageData(0, 0, w, h)
+  const data = image.data
+  const rad = CARD_CORNER * w
+  const notchX = CARD_NOTCH.u * w
+  const notchY = CARD_NOTCH.v * h
+  const ax = w - notchX
+  const ay = notchY
+  for (let y = 0; y < h; y += 1) {
+    for (let x = 0; x < w; x += 1) {
+      const cx = Math.min(Math.max(x, rad), w - rad)
+      const cy = Math.min(Math.max(y, rad), h - rad)
+      const dx = x - cx
+      const dy = y - cy
+      const outsideRound = dx * dx + dy * dy > rad * rad
+      const outsideNotch = ax * y - ay * (x - notchX) < 0
+      if (outsideRound || outsideNotch) data[(y * w + x) * 4 + 3] = 0
+    }
+  }
+  ctx.putImageData(image, 0, 0)
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.colorSpace = THREE.SRGBColorSpace
+  tex.anisotropy = texture.anisotropy || 4
+  tex.needsUpdate = true
+  return tex
+}
+
+function MetroCardBody({ texture, lit = false, meshRef }) {
+  const geometry = useMemo(() => createNotchedCardGeometry(), [])
+  const map = useMemo(() => punchCardAlpha(texture), [texture])
+  const materials = useMemo(() => ([
+    new THREE.MeshStandardMaterial({
+      map,
+      roughness: lit ? 0.45 : 0.88,
+      metalness: lit ? 0.06 : 0.04,
+      emissive: new THREE.Color('#2a2418'),
+      emissiveIntensity: lit ? 0.4 : 0,
+      // Discard the PNG's clear pixels. Blending ate the card against the floor.
+      alphaTest: 0.5,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
+    }),
+    new THREE.MeshStandardMaterial({
+      color: '#c49a28',
+      roughness: 0.65,
+      metalness: 0.12,
+    }),
+  ]), [map, lit])
+  useLayoutEffect(() => () => {
+    geometry.dispose()
+    if (map !== texture) map.dispose()
+    materials.forEach((m) => m.dispose())
+  }, [geometry, map, materials, texture])
+  return <mesh ref={meshRef} geometry={geometry} material={materials} />
+}
+
+/**
+ * Intro: one continuous toss. The card is already spinning and already
+ * moving on a single ease-out spline into the litter. Spin rate decays
+ * with that same ease. The camera rides the same clock. Bend is a vertex
+ * bow, skipped on low.
  */
 export function WindCard({ ready, onCameraHome, reducedMotion, driveCamera = true }) {
   const group = useRef()
+  const meshRef = useRef(null)
+  const basePos = useRef(null)
   const { camera } = useThree()
+  const { tier } = useGfx()
   const texture = useLoader(THREE.TextureLoader, '/metrocard.png')
   texture.colorSpace = THREE.SRGBColorSpace
   texture.anisotropy = 4
@@ -117,25 +290,32 @@ export function WindCard({ ready, onCameraHome, reducedMotion, driveCamera = tru
     camHome: false,
     cardLanded: false,
     finished: false,
+    bent: false,
   })
 
-  const FLY_SCALE = 3.6
   const LAND_SCALE = 1
-  /** Card flies faster than the camera pull so it stays in POV */
-  const CAM_DUR = 3.35
-  const CARD_DUR = 2.45
+  const HERO_SCALE = 1.55
+  /** Whole turns around the long axis, so the extra spin is identity on landing. */
+  const SPIN_TURNS = 3
+  const CARD_DUR = 2.8
+  const FACE_YAW = -Math.PI / 2
 
-  // Near-vertical “swipe in air” pose at the open, then settles flat on litter
-  const START_ROT = useMemo(() => new THREE.Euler(-0.55, 0.18, 0.12), [])
-
-  const START = useMemo(() => new THREE.Vector3(0.15, 2.15, 1.35), [])
+  const HERO = useMemo(() => new THREE.Vector3(...FLIGHT_START), [])
   const LAND = useMemo(() => new THREE.Vector3(...TRASH_CARD.pos), [])
+  // Drop across the open floor in front of the kiosk, under the screen,
+  // then along the left side to the litter. The arc stays off the screens.
+  const flight = useMemo(() => new THREE.CubicBezierCurve3(
+    HERO.clone(),
+    new THREE.Vector3(0.2, 0.55, -2),
+    new THREE.Vector3(-1.5, 0.4, -5.4),
+    LAND.clone(),
+  ), [HERO, LAND])
   const LAND_ROT = useMemo(() => new THREE.Euler(...TRASH_CARD.rot), [])
   const CAM_START = useMemo(() => ({
-    pos: new THREE.Vector3(0.2, 1.95, 3.6),
-    look: new THREE.Vector3(0.15, 1.85, 1.0),
-    fov: 42,
-  }), [])
+    pos: new THREE.Vector3(...INTRO_CAM.pos),
+    look: HERO.clone(),
+    fov: INTRO_CAM.fov,
+  }), [HERO])
   const CAM_KIOSK = useMemo(() => {
     const shot = resolvePov('kiosk')
     return {
@@ -144,9 +324,8 @@ export function WindCard({ ready, onCameraHome, reducedMotion, driveCamera = tru
       fov: shot.fov,
     }
   }, [])
-  const tmpPos = useMemo(() => new THREE.Vector3(), [])
+  const camPos = useMemo(() => new THREE.Vector3(), [])
   const tmpLook = useMemo(() => new THREE.Vector3(), [])
-  const tmpEuler = useMemo(() => new THREE.Euler(), [])
 
   const finishIntro = (s) => {
     if (s.finished || !s.camHome || !s.cardLanded) return
@@ -162,6 +341,10 @@ export function WindCard({ ready, onCameraHome, reducedMotion, driveCamera = tru
       camHome: false,
       cardLanded: false,
       finished: false,
+      bent: false,
+    }
+    if (basePos.current && meshRef.current) {
+      restoreCardBend(meshRef.current.geometry, basePos.current)
     }
     camera.position.copy(CAM_START.pos)
     camera.fov = CAM_START.fov
@@ -174,10 +357,6 @@ export function WindCard({ ready, onCameraHome, reducedMotion, driveCamera = tru
     const d = Math.min(dt, 0.05)
     const s = state.current
     const g = group.current
-    const easeOut = (t) => 1 - (1 - t) ** 3
-    const easeIn = (t) => t * t
-    const smooth = (t) => t * t * (3 - 2 * t)
-
     const setCam = (pos, look, fov) => {
       if (!driveCamera) return
       camera.position.copy(pos)
@@ -186,7 +365,14 @@ export function WindCard({ ready, onCameraHome, reducedMotion, driveCamera = tru
       camera.updateProjectionMatrix()
     }
 
+    const flatten = () => {
+      if (!s.bent || !basePos.current || !meshRef.current) return
+      restoreCardBend(meshRef.current.geometry, basePos.current)
+      s.bent = false
+    }
+
     if (reducedMotion) {
+      flatten()
       if (!ready || s.finished) {
         if (!s.cardLanded) {
           g.position.copy(LAND)
@@ -211,104 +397,67 @@ export function WindCard({ ready, onCameraHome, reducedMotion, driveCamera = tru
     s.life += d
     if (ready && !s.finished) s.age += d
 
-    const u = Math.min(1, s.age / CARD_DUR)
-    // Brief close-up, then a quicker dive so the card stays ahead of the camera
-    const e = u < 0.28
-      ? easeOut(u / 0.28) * 0.28
-      : 0.28 + easeIn((u - 0.28) / 0.72) * 0.72
-    const wind = (1 - e) ** 1.15
+    // One spline. Ease-out so speed and spin are already at full rate on the first frame.
+    const raw = Math.min(1, s.age / CARD_DUR)
+    const e = 1 - (1 - raw) ** 3
     const t = s.life
 
-    // Falling-paper path: arc + side-to-side / up-down flutter that dies out near the floor
-    const lift = Math.sin(Math.min(e, 0.9) * Math.PI) * 0.95 * (1 - Math.max(0, (e - 0.7) / 0.3) ** 2)
-    tmpPos.lerpVectors(START, LAND, e)
-    tmpPos.y += lift * (1 - e * 0.4)
-    tmpPos.x += (Math.sin(t * 2.15) * 0.48 + Math.sin(t * 4.6) * 0.14) * wind
-    tmpPos.y += Math.sin(t * 3.05) * 0.16 * wind
-    tmpPos.z += (Math.cos(t * 1.75) * 0.32 + Math.sin(t * 3.8) * 0.1) * wind
-    g.position.copy(tmpPos)
-
-    // Keep a vertical swipe bias early; wobble all axes like a sheet in air; settle flat late
-    tmpEuler.set(
-      THREE.MathUtils.lerp(START_ROT.x, LAND_ROT.x, e)
-        + Math.sin(t * 2.9) * wind * 0.85
-        + Math.sin(t * 5.4) * wind * 0.22,
-      THREE.MathUtils.lerp(START_ROT.y, LAND_ROT.y, e)
-        + Math.sin(t * 1.55) * wind * 0.7
-        + Math.cos(t * 3.2) * wind * 0.35,
-      THREE.MathUtils.lerp(START_ROT.z, LAND_ROT.z, e)
-        + Math.cos(t * 2.4) * wind * 1.05
-        + Math.sin(t * 4.8) * wind * 0.28,
-    )
-    if (u > 0.62) {
-      const k = smooth((u - 0.62) / 0.38)
-      tmpEuler.x = THREE.MathUtils.lerp(tmpEuler.x, LAND_ROT.x, k)
-      tmpEuler.y = THREE.MathUtils.lerp(tmpEuler.y, LAND_ROT.y, k)
-      tmpEuler.z = THREE.MathUtils.lerp(tmpEuler.z, LAND_ROT.z, k)
-    }
-    g.rotation.copy(tmpEuler)
-    g.scale.setScalar(THREE.MathUtils.lerp(FLY_SCALE, LAND_SCALE, e))
-
-    if (u >= 1 && !s.cardLanded) {
+    if (raw >= 1) {
+      if (s.bent) flatten()
       g.position.copy(LAND)
       g.rotation.copy(LAND_ROT)
       g.scale.setScalar(LAND_SCALE)
       s.cardLanded = true
-      finishIntro(s)
-    } else if (s.cardLanded) {
-      // Stay planted — don't keep rewriting pose after land
-      g.position.copy(LAND)
-      g.rotation.copy(LAND_ROT)
-      g.scale.setScalar(LAND_SCALE)
-    }
-
-    // Camera: slower pull so the faster card stays in frame
-    if (driveCamera && !s.camHome) {
-      if (!ready) {
-        tmpLook.copy(g.position)
-        setCam(CAM_START.pos, tmpLook, CAM_START.fov)
-        return
-      }
-      const cu = Math.min(1, s.age / CAM_DUR)
-      const ce = smooth(cu)
-      camera.position.lerpVectors(CAM_START.pos, CAM_KIOSK.pos, ce)
-      tmpLook.lerpVectors(CAM_START.look, CAM_KIOSK.look, ce)
-      // Track the card longer so it doesn't slip out of POV mid-flight
-      if (cu < 0.55) {
-        tmpLook.lerp(g.position, (1 - cu / 0.55) * 0.65)
-      }
-      camera.lookAt(tmpLook)
-      camera.fov = THREE.MathUtils.lerp(CAM_START.fov, CAM_KIOSK.fov, ce)
-      camera.updateProjectionMatrix()
-      if (cu >= 1) {
+      if (driveCamera && !s.camHome) {
         setCam(CAM_KIOSK.pos, CAM_KIOSK.look, CAM_KIOSK.fov)
         s.camHome = true
-        finishIntro(s)
       }
+      finishIntro(s)
+      return
+    }
+
+    flight.getPointAt(e, g.position)
+    const spin = (1 - e) * Math.PI * 2 * SPIN_TURNS
+    g.rotation.set(
+      THREE.MathUtils.lerp(0, LAND_ROT.x, e) + spin,
+      THREE.MathUtils.lerp(FACE_YAW, LAND_ROT.y, e),
+      THREE.MathUtils.lerp(0, LAND_ROT.z, e),
+    )
+    g.scale.setScalar(THREE.MathUtils.lerp(HERO_SCALE, LAND_SCALE, e))
+
+    const mesh = meshRef.current
+    if (mesh && !basePos.current) {
+      basePos.current = new Float32Array(mesh.geometry.attributes.position.array)
+    }
+    if (mesh && basePos.current) {
+      const bow = tier === 'low'
+        ? 0
+        : Math.sin(t * 2.05) * 0.012 * (0.35 + 0.65 * (1 - e))
+      if (Math.abs(bow) > 0.001) {
+        writeCardBend(mesh.geometry, basePos.current, bow)
+        s.bent = true
+      } else if (s.bent) {
+        restoreCardBend(mesh.geometry, basePos.current)
+        s.bent = false
+      }
+    }
+
+    // Same clock as the card: follow from the open side, aim eases onto the kiosk.
+    if (driveCamera && !s.camHome) {
+      camPos.copy(g.position)
+      camPos.x += CAM_FOLLOW[0]
+      camPos.y += CAM_FOLLOW[1]
+      camPos.z += CAM_FOLLOW[2]
+      camPos.lerp(CAM_KIOSK.pos, e)
+      tmpLook.copy(g.position).lerp(CAM_KIOSK.look, e * e * e)
+      const fov = THREE.MathUtils.lerp(INTRO_CAM.fov, CAM_KIOSK.fov, e)
+      setCam(camPos, tmpLook, fov)
     }
   })
 
   return (
-    <group ref={group} position={START.toArray()} scale={FLY_SCALE} rotation={START_ROT.toArray()}>
-      <mesh>
-        <planeGeometry args={TRASH_CARD.size} />
-        {/* Opaque like FloorTrash — transparent + floor coplanar was eating the card on land */}
-        <meshStandardMaterial
-          map={texture}
-          roughness={0.45}
-          metalness={0.06}
-          side={THREE.DoubleSide}
-          emissive="#2a2418"
-          emissiveIntensity={0.4}
-          polygonOffset
-          polygonOffsetFactor={-1}
-          polygonOffsetUnits={-1}
-        />
-      </mesh>
-      <mesh position={[0, 0, -0.004]} rotation={[0, Math.PI, 0]}>
-        <planeGeometry args={TRASH_CARD.size} />
-        <meshStandardMaterial color="#c49a28" roughness={0.65} metalness={0.12} />
-      </mesh>
+    <group ref={group} position={HERO.toArray()} scale={HERO_SCALE} rotation={[0, FACE_YAW, 0]}>
+      <MetroCardBody texture={texture} lit meshRef={meshRef} />
     </group>
   )
 }
@@ -362,29 +511,9 @@ export function FloorTrash({ showMetroCard = true }) {
   return (
     <group>
       {showMetroCard ? (
-        <>
-          <mesh
-            position={TRASH_CARD.pos}
-            rotation={TRASH_CARD.rot}
-            castShadow={false}
-          >
-            <planeGeometry args={TRASH_CARD.size} />
-            <meshStandardMaterial
-              map={metroTex}
-              roughness={0.88}
-              metalness={0.04}
-              side={THREE.DoubleSide}
-            />
-          </mesh>
-          <mesh
-            position={[TRASH_CARD.pos[0], TRASH_CARD.pos[1] - 0.003, TRASH_CARD.pos[2]]}
-            rotation={TRASH_CARD.rot}
-            castShadow={false}
-          >
-            <planeGeometry args={TRASH_CARD.size} />
-            <meshStandardMaterial color="#c49a28" roughness={0.7} metalness={0.1} side={THREE.BackSide} />
-          </mesh>
-        </>
+        <group position={TRASH_CARD.pos} rotation={TRASH_CARD.rot}>
+          <MetroCardBody texture={metroTex} />
+        </group>
       ) : null}
       {bits.map((b, i) => {
         if (b.kind === 'bag') {

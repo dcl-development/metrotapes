@@ -101,7 +101,8 @@ export function GfxProvider({ children }) {
       const next = stepUp(current)
       if (tierRank(next) > tierRank(cap)) return current
       if (next === current) return current
-      setDprMax(null)
+      // Same rule as a drop: never reopen a cap that was already tightened.
+      setDprMax((prev) => dprCapAfterDrop(prev ?? tierDprMax(current), tierDprMax(next)))
       return next
     })
   }, [])

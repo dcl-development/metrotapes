@@ -28,6 +28,8 @@ export function InfoKiosk({
   const lastObj = useRef('')
   const htmlOpacity = useRef(fadeIn ? 0 : 1)
   const fadeLatch = useRef(fadeIn)
+  const opacityWritten = useRef('')
+  const opacityNode = useRef(null)
   const logoTex = useLoader(THREE.TextureLoader, '/mta-logo.jpg')
 
   useLayoutEffect(() => {
@@ -72,7 +74,14 @@ export function InfoKiosk({
     } else {
       htmlOpacity.current = target
     }
-    root.style.opacity = htmlOpacity.current.toFixed(3)
+    // Same string every frame still dirties the preserve-3d layer and
+    // the canvas ResizeObserver — that is the screen flash after a move.
+    const nextOpacity = htmlOpacity.current.toFixed(3)
+    if (opacityWritten.current !== nextOpacity || opacityNode.current !== root) {
+      opacityWritten.current = nextOpacity
+      opacityNode.current = root
+      root.style.opacity = nextOpacity
+    }
   })
 
   const faceZ = cabD / 2

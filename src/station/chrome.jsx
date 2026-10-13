@@ -1,6 +1,6 @@
 import styled from 'styled-components'
 import { KIOSK_PANEL_H, KIOSK_PANEL_W, KIOSK_RADIUS_PX } from '../lib/kioskSize'
-import { decideQualityStep } from '../lib/gfxDetect'
+import { decideQualityStep, trackQualityMotion } from '../lib/gfxDetect'
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { useGfx } from '../lib/useGfx'
@@ -256,6 +256,8 @@ export const StationFilm = styled.div`
  * Runtime budget guard.
  * Soften DPR first, then drop a tier. Step back up only with headroom,
  * never above the probed ceiling. Warm-up + hysteresis so fly-ins don't flap.
+ * A camera move, and a short settle after it, is not a sample: frame-time
+ * dips there used to resize the buffer and rebuild lights mid-shot.
  */
 export function GfxWatch({ busyRef, armed = true }) {
   const {
@@ -277,6 +279,7 @@ export function GfxWatch({ busyRef, armed = true }) {
     t: 0,
     n: 0,
     hitches: 0,
+    hold: 0,
     sinceDrop: Number.POSITIVE_INFINITY,
     sincePromote: Number.POSITIVE_INFINITY,
   })
@@ -285,17 +288,23 @@ export function GfxWatch({ busyRef, armed = true }) {
     // Idle pumps run slower than 36fps on purpose. Don't read that as jank.
     if (!armed) return
     if (!canSoften && !canDrop && !canPromote && !warmCorrectable) return
-    // A camera move is supposed to be heavy. Don't treat it as a reason
-    // to drop DPR mid-flight — that resizes the buffer and jerks the shot.
-    if (busyRef?.current) return
 
     const a = acc.current
     // Cap so a background tab resume doesn't look like 2fps forever.
     const frame = Math.min(Math.max(dt, 0), 0.1)
-    a.warm += frame
     if (a.cool > 0) a.cool = Math.max(0, a.cool - frame)
     if (Number.isFinite(a.sinceDrop)) a.sinceDrop += frame
     if (Number.isFinite(a.sincePromote)) a.sincePromote += frame
+    // A camera move is supposed to be heavy. Don't treat it — or the
+    // hitch when it lands — as a reason to resize the buffer.
+    const motion = trackQualityMotion(a, Boolean(busyRef?.current), frame)
+    a.t = motion.t
+    a.n = motion.n
+    a.hitches = motion.hitches
+    a.hold = motion.hold
+    if (!motion.sample) return
+
+    a.warm += frame
     if (a.warm < 3) return
 
     a.t += frame

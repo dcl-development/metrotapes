@@ -9,7 +9,7 @@ import { ChromeBar, ChromeBtn, EdgeHit, GfxWatch, HomeIcon, IdlePump, KioskFrame
 import { FloorTrash, INTRO_CAM, TrackTrash, WindCard } from '../station/litter'
 import { InfoKiosk } from '../station/kiosk'
 import { Signage, WallBoards } from '../station/walls'
-import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, cloneElement, isValidElement, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Tracks } from '../station/tracks'
 import { Train } from '../station/train'
 import { completeZapPhase, shouldOpenKiosk } from '../lib/kioskPhase'
@@ -666,7 +666,9 @@ export default function StationScene({
                     $h={wall.panelH}
                     $soft={settings.softScreens}
                   >
-                    {wallPages[b.id]}
+                    {b.id === 'photo' && isValidElement(wallPages.photo)
+                      ? cloneElement(wallPages.photo, { active: pageView && pov === 'photo' })
+                      : wallPages[b.id]}
                     {pageView && pov === b.id ? null : (
                       <>
                         <KioskGlass aria-hidden />

@@ -10,9 +10,10 @@ import ImageModal from '../components/ImageModal'
 import OrnatePhotoFrame from '../components/OrnatePhotoFrame'
 import FrostNote from '../components/FrostNote'
 import { font } from '../styles/theme'
-import { photoAutoplayAllowed } from '../lib/stationFrame'
+import { nextPhotoIndex, photoAutoplayAllowed } from '../lib/stationFrame'
 
-const AUTO_MS = 4500
+const AUTO_MS = 3000
+const RESUME_MS = 4000
 const GAP = 7
 const COPIES = 5 // odd — we sit on the middle copy for infinite wrap
 
@@ -125,7 +126,6 @@ const StripTrack = styled.div`
   width: max-content;
   gap: ${GAP}px;
   padding: 0;
-  will-change: transform;
 `
 
 const StripShot = styled.div`
@@ -440,6 +440,9 @@ export default function PhotoPage({ active = true }) {
   const layerKey = useRef(0)
   const aspects = useRef({})
   const resumeTimer = useRef(0)
+  const hoverRef = useRef(false)
+  const downRef = useRef(0)
+  const panelRef = useRef(null)
   const [tabHidden, setTabHidden] = useState(
     () => typeof document !== 'undefined' && document.hidden,
   )
@@ -483,27 +486,68 @@ export default function PhotoPage({ active = true }) {
     return () => window.clearTimeout(clear)
   }, [featuredIndex])
 
-  // Auto-advance every ~4.5s — strip recenters, frame follows.
-  // The page stays mounted on the wall even when that board is hidden.
-  // While the camera is still on the way, `active` is false and the frame holds.
+  const stripItems = useMemo(() => {
+    const entries = []
+    photos.slice(0, STRIP_CAP).forEach((photo, index) => {
+      const item = filmItem(photo, index)
+      if (item) entries.push({ item, index })
+    })
+    return entries
+  }, [photos])
+  const stripIndexes = useMemo(() => stripItems.map((entry) => entry.index), [stripItems])
+
+  // Auto-advance every 3s. The strip recenters on that frame, so the yellow
+  // outline travels with it. The page stays mounted on the wall; `active` is
+  // false until the camera is on this board, and the timer stays off then.
   useEffect(() => {
     if (!active) return undefined
     if (!photoAutoplayAllowed(location.pathname, tabHidden)) return undefined
-    if (status !== 'ready' || photos.length < 2 || paused || isModalOpen) return undefined
+    if (status !== 'ready' || stripIndexes.length < 2 || paused || isModalOpen) return undefined
     const reduced = typeof window !== 'undefined'
       && window.matchMedia('(prefers-reduced-motion: reduce)').matches
     if (reduced) return undefined
 
     const id = window.setInterval(() => {
-      setFeaturedIndex((i) => (i + 1) % photos.length)
+      setFeaturedIndex((i) => nextPhotoIndex(i, stripIndexes))
     }, AUTO_MS)
     return () => window.clearInterval(id)
-  }, [active, location.pathname, tabHidden, status, photos.length, paused, isModalOpen])
+  }, [active, location.pathname, tabHidden, status, stripIndexes, paused, isModalOpen])
+
+  // Leaving the gallery puts the first frame back. The board stays in the
+  // scene, so without this the last photo would keep sitting on the wall.
+  useEffect(() => {
+    if (location.pathname === '/photo') return undefined
+    setFeaturedIndex(0)
+    setIsModalOpen(false)
+    setSelectedImage(null)
+    setPaused(false)
+    hoverRef.current = false
+    downRef.current = 0
+    window.clearTimeout(resumeTimer.current)
+    return undefined
+  }, [location.pathname])
+
+  const holdInteract = useCallback((event) => {
+    if (event.type === 'pointerenter') hoverRef.current = true
+    if (event.type === 'pointerdown') downRef.current += 1
+    setPaused(true)
+    window.clearTimeout(resumeTimer.current)
+  }, [])
+
+  const releaseInteract = useCallback((event) => {
+    if (event.type === 'pointerleave' || event.type === 'pointercancel') hoverRef.current = false
+    if (event.type === 'pointerup' || event.type === 'pointercancel') {
+      downRef.current = Math.max(0, downRef.current - 1)
+    }
+    if (hoverRef.current || downRef.current > 0) return
+    window.clearTimeout(resumeTimer.current)
+    resumeTimer.current = window.setTimeout(() => setPaused(false), RESUME_MS)
+  }, [])
 
   const bumpPause = useCallback(() => {
     setPaused(true)
     window.clearTimeout(resumeTimer.current)
-    resumeTimer.current = window.setTimeout(() => setPaused(false), 5000)
+    resumeTimer.current = window.setTimeout(() => setPaused(false), RESUME_MS)
   }, [])
 
   useEffect(() => () => window.clearTimeout(resumeTimer.current), [])
@@ -539,14 +583,6 @@ export default function PhotoPage({ active = true }) {
       : aspect)
   const mediaItems = photos.map((photo) => ({ type: 'image', image: photo }))
   const caption = `${String(featuredIndex + 1).padStart(2, '0')} / ${String(photos.length).padStart(2, '0')}`
-  const stripItems = useMemo(() => {
-    const entries = []
-    photos.slice(0, STRIP_CAP).forEach((photo, index) => {
-      const item = filmItem(photo, index)
-      if (item) entries.push({ item, index })
-    })
-    return entries
-  }, [photos])
   const curlItems = useMemo(() => stripItems.map((entry) => entry.item), [stripItems])
   // Same 3D strip on the wall and after arrival. `active` only starts the
   // rAF loop once the camera is on this page. The thumbnail rail is only
@@ -556,7 +592,14 @@ export default function PhotoPage({ active = true }) {
 
   return (
     <>
-      <Panel>
+      <Panel
+        ref={panelRef}
+        onPointerEnter={holdInteract}
+        onPointerDown={holdInteract}
+        onPointerLeave={releaseInteract}
+        onPointerUp={releaseInteract}
+        onPointerCancel={releaseInteract}
+      >
         {status === 'loading' && <FrostNote>Loading photos…</FrostNote>}
         {status === 'empty' && <FrostNote>No photos yet.</FrostNote>}
         {status === 'error' && <FrostNote>Could not load photos.</FrostNote>}

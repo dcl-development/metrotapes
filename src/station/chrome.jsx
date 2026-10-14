@@ -9,6 +9,7 @@ const GRAIN_SVG = encodeURIComponent(
   `<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160">
     <filter id="n">
       <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="4" stitchTiles="stitch"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  2.4 0 0 0 -1.55"/>
     </filter>
     <rect width="100%" height="100%" filter="url(#n)"/>
   </svg>`,
@@ -104,7 +105,7 @@ export const OverlayObj = styled.div`
   cursor: ${(p) => (p.$catch && !p.$live ? 'pointer' : 'inherit')};
   transform-style: ${(p) => (p.$fill ? 'flat' : 'preserve-3d')};
   ${(p) => p.$off && `
-    visibility: hidden !important;
+    display: none !important;
   `}
   ${(p) => !p.$live && `
     * { pointer-events: none !important; }
@@ -195,7 +196,8 @@ export const WallFrame = styled.div`
   background: #0c0e10;
   filter: none;
   transition: filter 0.5s ease;
-  contain: ${(p) => (p.$fill ? 'none' : 'strict')};
+  /* paint containment clips a preserve-3d child to a hard rect in Chrome. */
+  contain: ${(p) => (p.$fill ? 'none' : 'size layout style')};
   ${(p) => !p.$fill && `
     * { pointer-events: none !important; }
   `}
@@ -220,13 +222,11 @@ export const StationFilm = styled.div`
     position: absolute;
     inset: 0;
     opacity: ${(p) => p.$grain};
-    mix-blend-mode: overlay;
     background-image: url("data:image/svg+xml,${GRAIN_SVG}");
     background-size: 140px 140px;
-    /* steps(2) only ever showed the 0% pose and the old 50% pose
-       (translate 0.9%, -1% of a layer padded 8%). Shift the tile by that
-       same amount. A transform on this blend layer is what splits the
-       canvas into tiles and glitches the lower half. */
+    /* Shift the tile with background-position. A transform on this
+       layer is what splits the canvas into tiles. No mix-blend: blending
+       over the WebGL canvas and the CSS3D screens samples a torn backdrop. */
     animation: stationGrain 0.55s steps(2, end) infinite;
   }
 
@@ -235,17 +235,14 @@ export const StationFilm = styled.div`
       content: '';
       position: absolute;
       inset: 0;
-      opacity: 0.55;
-      mix-blend-mode: screen;
-      background:
-        linear-gradient(
-          90deg,
-          rgba(255, 40, 60, 0.07) 0%,
-          transparent 18%,
-          transparent 82%,
-          rgba(40, 220, 255, 0.07) 100%
-        ),
-        radial-gradient(ellipse at center, transparent 52%, rgba(0, 0, 0, 0.22) 100%);
+      opacity: 0.9;
+      background: linear-gradient(
+        90deg,
+        rgba(255, 40, 60, 0.05) 0%,
+        transparent 16%,
+        transparent 84%,
+        rgba(40, 220, 255, 0.05) 100%
+      );
     }
   `}
 

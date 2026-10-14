@@ -2,7 +2,7 @@
 import * as THREE from 'three'
 import { STAIR_N, STAIR_RUN, STAIR_X, STAIR_Z0, WALL_X, isWallPov } from './space'
 import { WALL_BEZEL, getWallFace } from '../lib/wallSize'
-import { applyCss3dCamera, isIOSWebKit, objectCssMatrix } from './css3d'
+import { applyCss3dCamera, css3dLayerLive, isIOSWebKit, objectCssMatrix } from './css3d'
 import { lumaAsAlpha, makeLabelTexture, paintExitSign } from './textures'
 import { makeBoardLabel, wallBoardList } from './boards'
 import { useFrame, useLoader, useThree } from '@react-three/fiber'
@@ -179,7 +179,17 @@ export function WallBoards({
   const opacityWritten = useRef('')
   const opacityNode = useRef(null)
   const shown = useRef({})
+  const displayWant = useRef({})
   const lastRayAt = useRef(0)
+
+  const setObjShown = (el, id, show) => {
+    const next = show ? '' : 'none'
+    if (displayWant.current[id] === next) return
+    displayWant.current[id] = next
+    // visibility:hidden still composites a preserve-3d layer. display:none does not.
+    el.style.display = next
+    if (el.style.visibility) el.style.visibility = ''
+  }
   const reducedMotion = useMemo(
     () => typeof window !== 'undefined'
       && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
@@ -226,17 +236,19 @@ export function WallBoards({
           lastObj.current[b.id] = objXform
           objEl.style.transform = objXform
         }
-        objEl.style.visibility = 'hidden'
+        setObjShown(objEl, b.id, false)
       })
       if (opacityWritten.current !== '0' || opacityNode.current !== root) {
         opacityWritten.current = '0'
         opacityNode.current = root
         root.style.opacity = '0'
       }
+      if (root.style.display !== 'none') root.style.display = 'none'
       return
     }
 
     if (immersed && isWallPov(immersedId)) {
+      if (root.style.display) root.style.display = ''
       root.style.opacity = '1'
       root.style.perspective = 'none'
       root.style.perspectiveOrigin = '50% 50%'
@@ -253,10 +265,10 @@ export function WallBoards({
         if (!objEl) return
         if (b.id === immersedId) {
           objEl.style.transform = 'none'
-          objEl.style.visibility = 'visible'
+          setObjShown(objEl, b.id, true)
           lastObj.current[b.id] = ''
         } else {
-          objEl.style.visibility = 'hidden'
+          setObjShown(objEl, b.id, false)
         }
       })
       return
@@ -316,9 +328,14 @@ export function WallBoards({
       } else if (!runRays && shown.current[b.id] === false) {
         show = false
       }
+      // Clip-plane and off-screen quads stay out of the compositor even
+      // while a flight is freezing the facing decision.
+      if (show && !css3dLayerLive(mesh.matrixWorld, camera, size, pxPerMeter, panelW, panelH)) {
+        show = false
+      }
       shown.current[b.id] = show
       if (!show) {
-        objEl.style.visibility = 'hidden'
+        setObjShown(objEl, b.id, false)
         return
       }
 
@@ -327,7 +344,7 @@ export function WallBoards({
         lastObj.current[b.id] = objXform
         objEl.style.transform = objXform
       }
-      objEl.style.visibility = 'visible'
+      setObjShown(objEl, b.id, true)
       anyFacing = true
     })
     if (fadeIn && !fadeLatch.current) htmlOpacity.current = 0
@@ -344,6 +361,8 @@ export function WallBoards({
       opacityNode.current = root
       root.style.opacity = nextOpacity
     }
+    const rootDisplay = anyFacing || htmlOpacity.current > 0.001 ? '' : 'none'
+    if (root.style.display !== rootDisplay) root.style.display = rootDisplay
   })
 
   const x = WALL_X + 0.04

@@ -69,8 +69,8 @@ const Slide = styled.img`
     upward out of this slot; the frame sits in a higher layer and blocks
     hits where they overlap. */
 const CurlBand = styled.div`
-  flex: 0 0 clamp(72px, 22%, 168px);
-  height: clamp(72px, 22%, 168px);
+  flex: 0 0 clamp(140px, 36%, 300px);
+  height: clamp(140px, 36%, 300px);
   width: 100vw;
   max-width: 100vw;
   margin-left: calc(50% - 50vw);

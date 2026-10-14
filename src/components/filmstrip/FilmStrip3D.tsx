@@ -2098,6 +2098,7 @@ export default function FilmStrip3D({
       onBlur={onBlur}
       onKeyDown={onKeyDown}
     >
+      {show3d ? <div className={styles.scrub} data-fs3d-scrub="" aria-hidden="true" /> : null}
       {flat ? null : (
         /* base + photos, sliced along the path (decorative; the buttons below carry the semantics) */
         <div className={styles.stage}>

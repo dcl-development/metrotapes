@@ -1,6 +1,6 @@
 /* eslint-disable react/no-unknown-property */
 import * as THREE from 'three'
-import { KIOSK, applyCss3dCamera, makeRoundedBoxGeometry, makeRoundedPlaneGeometry, objectCssMatrix } from './css3d'
+import { KIOSK, applyCss3dCamera, css3dLayerLive, makeRoundedBoxGeometry, makeRoundedPlaneGeometry, objectCssMatrix } from './css3d'
 import { KIOSK_RADIUS_M } from '../lib/kioskSize'
 import { makeCanvasTexture, paintKioskPlastic, paintKioskRough } from './textures'
 import { useFrame, useLoader, useThree } from '@react-three/fiber'
@@ -54,6 +54,16 @@ export function InfoKiosk({
     camera.getWorldDirection(camDir)
     toObj.setFromMatrixPosition(screen.current.matrixWorld).sub(camera.position)
     const facing = toObj.angleTo(camDir) <= Math.PI / 2
+    // A quad on the clip plane is still a composited layer at opacity 0.
+    // display:none is what actually drops it.
+    const onScreen = facing && css3dLayerLive(
+      screen.current.matrixWorld,
+      camera,
+      size,
+      pxPerMeter,
+      panelW,
+      panelH,
+    )
     const camXform = applyCss3dCamera(root, camera, size, gl.domElement, camEl)
     const objXform = objectCssMatrix(screen.current.matrixWorld, pxPerMeter, panelW, panelH)
     // Remounted nodes have empty style — must write even if xform string matches last trip
@@ -68,7 +78,9 @@ export function InfoKiosk({
     // Screens mount with the scene. During the intro they rise in instead of popping on at the end.
     if (fadeIn && !fadeLatch.current) htmlOpacity.current = 0
     fadeLatch.current = fadeIn
-    const target = projectHtml && facing && reveal ? 1 : 0
+    const target = projectHtml && onScreen && reveal ? 1 : 0
+    const nextDisplay = target > 0 ? '' : 'none'
+    if (root.style.display !== nextDisplay) root.style.display = nextDisplay
     if (fadeIn && htmlOpacity.current < target) {
       htmlOpacity.current = Math.min(target, htmlOpacity.current + Math.min(dt, 0.05) / 0.9)
     } else {

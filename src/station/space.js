@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { getWallFace } from '../lib/wallSize'
+import { getWallFace } from '../lib/wallSize.js'
 
 /**
  * 3D platform. Intro: one continuous MetroCard wind-flight onto litter, then kiosk home.

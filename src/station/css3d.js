@@ -1,6 +1,6 @@
 import * as THREE from 'three'
-import { KIOSK_BEZEL, KIOSK_CAB_H, KIOSK_CAB_W, KIOSK_PANEL_H, KIOSK_PANEL_W, KIOSK_POST_H, KIOSK_SCREEN_H, KIOSK_SCREEN_W } from '../lib/kioskSize'
-import { css3dBoxChanged } from '../lib/stationFrame'
+import { KIOSK_BEZEL, KIOSK_CAB_H, KIOSK_CAB_W, KIOSK_PANEL_H, KIOSK_PANEL_W, KIOSK_POST_H, KIOSK_SCREEN_H, KIOSK_SCREEN_W } from '../lib/kioskSize.js'
+import { css3dBoxChanged } from '../lib/stationFrame.js'
 
 export const KIOSK = {
   x: 0.38,
@@ -27,7 +27,28 @@ function cssMatrix3d(matrix, multipliers, prepend = '') {
   return prepend + out
 }
 
-const CAM_CSS_MUL = [1, -1, 1, 1, 1, -1, 1, 1, 1, -1, 1, 1, 1, -1, 1, 1]
+/**
+ * CSS pixels per world meter, shared by the camera and every screen.
+ * The station is in meters, but CSS perspective is in pixels. Unscaled
+ * matrices park a screen that is 1.8m away at w ≈ 0.002 — two CSS pixels
+ * from the clip plane. Chrome's GPU compositor then culls tiles: the LCD
+ * and wall pages flicker, a hard edge cuts the kiosk, and the header
+ * vanishes. Software compositing never hits that path.
+ * Scaling translation (and the object's pixel size) by this factor keeps
+ * the same projected picture and puts w near 1.
+ */
+export const CSS3D_SCALE = 512
+/** Below this, a corner is grazing the clip plane. Drop the layer. */
+export const CSS3D_MIN_W = 0.2
+
+export function cameraCssMultipliers(scale = CSS3D_SCALE) {
+  return [1, -1, 1, 1, 1, -1, 1, 1, 1, -1, 1, 1, scale, -scale, scale, 1]
+}
+
+export function objectCssMultipliers(pxPerMeter, scale = CSS3D_SCALE) {
+  const s = scale / pxPerMeter
+  return [s, s, s, 1, -s, -s, -s, -1, s, s, s, 1, scale, scale, scale, 1]
+}
 
 export function isIOSWebKit() {
   if (typeof navigator === 'undefined') return false
@@ -74,18 +95,111 @@ export function applyCss3dCamera(root, camera, size, _canvas, camEl) {
     // Chrome: leave OverlayCam at default 50% 50% (element-local). Do not write it.
   }
 
-  return `translateZ(${fov}px)${cssMatrix3d(camera.matrixWorldInverse, CAM_CSS_MUL)}translate(${widthHalf}px,${heightHalf}px)`
+  return `translateZ(${fov}px)${cssMatrix3d(camera.matrixWorldInverse, cameraCssMultipliers())}translate(${widthHalf}px,${heightHalf}px)`
 }
 
 export function objectCssMatrix(matrix, factor, panelW, panelH) {
-  const f = factor
   // Pixel origin — iOS treats translate(-50%,-50%) as a % of the viewport in 3D,
   // which slides the kiosk HTML down the white cabinet.
   return cssMatrix3d(
     matrix,
-    [1 / f, 1 / f, 1 / f, 1, -1 / f, -1 / f, -1 / f, -1, 1 / f, 1 / f, 1 / f, 1, 1, 1, 1, 1],
+    objectCssMultipliers(factor),
     `translate(${-panelW / 2}px,${-panelH / 2}px)`,
   )
+}
+
+const _obj = new THREE.Matrix4()
+const _cam = new THREE.Matrix4()
+const _objT = new THREE.Matrix4()
+const _tz = new THREE.Matrix4()
+const _tzCam = new THREE.Matrix4()
+const _half = new THREE.Matrix4()
+const _camT = new THREE.Matrix4()
+const _child = new THREE.Matrix4()
+const _persp = new THREE.Matrix4()
+const _neg = new THREE.Matrix4()
+const _pShift = new THREE.Matrix4()
+const _withP = new THREE.Matrix4()
+const _root = new THREE.Matrix4()
+const _v = new THREE.Vector4()
+
+function applyMul(out, matrix, multipliers) {
+  const e = matrix.elements
+  const o = out.elements
+  for (let i = 0; i < 16; i += 1) o[i] = multipliers[i] * e[i]
+  return out
+}
+
+/**
+ * Project the four corners of a CSS screen the way the DOM does
+ * (perspective-origin center, transform-origin center).
+ * NDC y is up. Returns null when the inputs can't form a projection.
+ */
+export function css3dProject(objectMatrix, camera, width, height, pxPerMeter, panelW, panelH) {
+  if (!(width > 0) || !(height > 0) || !(pxPerMeter > 0) || !(panelW > 0) || !(panelH > 0)) {
+    return null
+  }
+  const fov = camera.projectionMatrix.elements[5] * (height / 2)
+  if (!(fov > 0)) return null
+
+  applyMul(_obj, objectMatrix, objectCssMultipliers(pxPerMeter))
+  applyMul(_cam, camera.matrixWorldInverse, cameraCssMultipliers())
+
+  // Transform-origin center cancels the centering translate on the left,
+  // leaving the matrix applied around the element's center.
+  _objT.multiplyMatrices(_obj, _half.makeTranslation(-panelW / 2, -panelH / 2, 0))
+  _tzCam.multiplyMatrices(_tz.makeTranslation(0, 0, fov), _cam)
+  _camT.multiplyMatrices(_half.makeTranslation(width / 2, height / 2, 0), _tzCam)
+  _child.multiplyMatrices(_camT, _objT)
+
+  _persp.set(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, -1 / fov, 1)
+  _pShift.multiplyMatrices(_persp, _neg.makeTranslation(-width / 2, -height / 2, 0))
+  _withP.multiplyMatrices(_half.makeTranslation(width / 2, height / 2, 0), _pShift)
+  _root.multiplyMatrices(_withP, _child)
+
+  const ndc = []
+  let minW = Infinity
+  let maxW = -Infinity
+  const corners = [[0, 0], [panelW, 0], [0, panelH], [panelW, panelH]]
+  for (let i = 0; i < corners.length; i += 1) {
+    _v.set(corners[i][0], corners[i][1], 0, 1).applyMatrix4(_root)
+    const w = _v.w
+    if (w < minW) minW = w
+    if (w > maxW) maxW = w
+    ndc.push({
+      x: (_v.x / w / width) * 2 - 1,
+      y: -((_v.y / w / height) * 2 - 1),
+      w,
+    })
+  }
+  return { minW, maxW, ndc }
+}
+
+/**
+ * True when this screen can be a composited layer.
+ * A corner with w under CSS3D_MIN_W is beside the camera (the photo board
+ * from the straight-on kiosk shot). Chrome turns that quad into a page-sized
+ * tile cull. Off-screen boards stay display:none so their full-viewport
+ * textures are not resident.
+ */
+export function css3dLayerLive(objectMatrix, camera, size, pxPerMeter, panelW, panelH) {
+  const width = size?.width
+  const height = size?.height
+  const proj = css3dProject(objectMatrix, camera, width, height, pxPerMeter, panelW, panelH)
+  if (!proj || proj.minW < CSS3D_MIN_W) return false
+  let minX = Infinity
+  let maxX = -Infinity
+  let minY = Infinity
+  let maxY = -Infinity
+  for (let i = 0; i < proj.ndc.length; i += 1) {
+    const p = proj.ndc[i]
+    if (p.x < minX) minX = p.x
+    if (p.x > maxX) maxX = p.x
+    if (p.y < minY) minY = p.y
+    if (p.y > maxY) maxY = p.y
+  }
+  const m = 0.12
+  return maxX >= -1 - m && minX <= 1 + m && maxY >= -1 - m && minY <= 1 + m
 }
 
 function roundedRectShape(w, h, r) {

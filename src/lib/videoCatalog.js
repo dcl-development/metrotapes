@@ -1,8 +1,14 @@
 /** One in-flight request shared by the kiosk and the video page. */
 let catalogPromise = null
 
+const VIDEO_ID = /^[\w-]{6,}$/
+
+export function isVideoId(videoId) {
+  return typeof videoId === 'string' && VIDEO_ID.test(videoId)
+}
+
 export function youtubeThumb(videoId) {
-  if (typeof videoId !== 'string' || !/^[\w-]{6,}$/.test(videoId)) return ''
+  if (!isVideoId(videoId)) return ''
   return `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
 }
 

@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { loadVideoCatalog, resetVideoCatalogForTests, youtubeThumb } from './videoCatalog.js'
+import {
+  loadVideoCatalog,
+  resetVideoCatalogForTests,
+  youtubeThumb,
+} from './videoCatalog.js'
 
 describe('youtubeThumb', () => {
   it('uses hqdefault, which exists when maxres does not', () => {

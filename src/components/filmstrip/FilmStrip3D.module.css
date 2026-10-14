@@ -44,6 +44,15 @@
   --hole: var(--fs3d-hole, #f3f0e6);
 }
 
+/* The root and the stage are flat planes at z=0. Hits on the receding leg
+   sit behind that plane, and Chrome delivers the click to the plane instead
+   of the button. Drop the planes out of hit testing once the 3D ribbon is
+   up. The scrub layer (first child) keeps drags on the sprockets; the
+   buttons opt back in. */
+.root[data-renderer='3d'] {
+  pointer-events: none;
+}
+
 /* Short screens (phones in landscape, split windows): the 400px desktop
    stage is taller than the viewport and pushes the bio off a second page. */
 @media (max-height: 560px) {
@@ -81,6 +90,15 @@
   position: absolute;
   inset: 0;
   transform-style: preserve-3d;
+  pointer-events: none;
+}
+
+/* Under the stage, not over it. A later sibling covers the far-leg buttons. */
+.scrub {
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;
+  touch-action: pan-y;
 }
 
 /* ---- one slice of film ---------------------------------------------------- */
@@ -266,6 +284,10 @@
   -webkit-appearance: none;
   appearance: none;
   visibility: hidden;
+  /* Parent planes are pointer-events:none. Opt back in so a far-leg button
+     is the click target. Inline `none` from JS still hides off-path frames. */
+  pointer-events: auto;
+  touch-action: pan-y;
 }
 
 /* hidden frames (off the path) set pointer-events from JS; a flipped return leg stays clickable */

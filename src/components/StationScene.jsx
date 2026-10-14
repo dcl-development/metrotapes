@@ -671,6 +671,22 @@ export default function StationScene({
             </OverlayCam>
           </Overlay>
         ) : null}
+        {!dimmed && !pageView && !(pov === 'kiosk' && isLandscapeZoom(kioskZoom)) ? (
+          <>
+            <EdgeHit
+              type="button"
+              $side="left"
+              aria-label="Look left"
+              onClick={(e) => lookAside(e, 'left')}
+            />
+            <EdgeHit
+              type="button"
+              $side="right"
+              aria-label="Look right"
+              onClick={(e) => lookAside(e, 'right')}
+            />
+          </>
+        ) : null}
       </SceneWrap>
       {pageView || !settings.grain ? null : (
         <StationFilm
@@ -680,22 +696,6 @@ export default function StationScene({
           aria-hidden
         />
       )}
-      {!dimmed && !pageView && !(pov === 'kiosk' && isLandscapeZoom(kioskZoom)) ? (
-        <>
-          <EdgeHit
-            type="button"
-            $side="left"
-            aria-label="Look left"
-            onClick={(e) => lookAside(e, 'left')}
-          />
-          <EdgeHit
-            type="button"
-            $side="right"
-            aria-label="Look right"
-            onClick={(e) => lookAside(e, 'right')}
-          />
-        </>
-      ) : null}
       {!dimmed && (isWallPov(pov) || (kioskLive && pov === 'kiosk' && (landscape || (kioskZoom === 'close' && kioskArrived && zap === 'open')))) ? (
         <ChromeBar $dock={pageView}>
           {kioskZoom === 'right' ? (

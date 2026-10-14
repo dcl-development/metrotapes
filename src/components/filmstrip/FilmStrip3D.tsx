@@ -82,7 +82,7 @@ export type FilmStrip3DProps = {
   /** Container height (number = px, or any CSS length). Default: the `--fs3d-height` CSS variable. */
   height?: number | string;
   /**
-   * Black film margin between two photos, in strip px (the strip is 248px tall). Default 18.
+   * Black film margin between two photos, in strip px (the strip is ~184px tall). Default 18.
    * Clamped to 10 – 90. Larger = more black film between the pictures.
    */
   gap?: number;
@@ -125,10 +125,10 @@ export type FilmStripMode = 'auto' | '3d' | 'flat';
 /* ------------------------------------------------------------------ */
 
 const W = 200; // strip pitch (world px) of a frame without a known ratio
-const STRIP_H = 248; // film height (world px); keep in sync with the CSS `.slice { height }`
+const STRIP_H = 184; // film height (world px); keep in sync with the CSS `.slice { height }`
 const HALF_H = STRIP_H / 2;
-const PHOTO_H = 152; // photo window height; keep in sync with the CSS `.ph { height }`
-const PHOTO_TOP = 48; // keep in sync with CSS `.ph { top }` — leaves a top edge-print band
+const PHOTO_H = 112; // photo window height; keep in sync with the CSS `.ph { height }`
+const PHOTO_TOP = 36; // keep in sync with CSS `.ph { top }` — leaves a top edge-print band
 const DEFAULT_GAP = 18;
 const STOCK_EVERY = 4; // show stock label on every Nth frame only
 const MIN_GAP = 10;
@@ -313,54 +313,52 @@ const platW = (u: number, r: number) => {
 type LoopSeg = { len: number; d: number; kind: 'bump' | 'turn' };
 
 /**
- * Heading along arc length (0 = +x, positive = towards the camera).
- * A slight S on the way in (out, then back), one long hairpin whose return
- * covers most of the viewport, then a slight S out the other side. The S
- * settles on the axis so it does not walk into the lens. The return leg's
- * climb in Y is applied later and is not fitted.
+ * The centreline is defined by its HEADING (top-down angle, 0 = +x, positive = towards the camera) along arc length:
+ * arch towards the viewer -> hairpin #1 -> back leg -> hairpin #2 -> exit leg that recedes to the right.
+ * The approach stays near +x so the hairpin and the receding leg land on the right of the hero instead of
+ * stalling mid-page; phones (compact = 1) shorten the straight legs. Straight bleed past both ends is NOT
+ * part of the fitted core: the hairpin stays the same size, and the extra approach / exit run off the viewport.
+ * Curvature is a smooth function of arc length, so there are no kinks; the hairpin radius is floored so that
+ * no slice turns by more than MAX_SLICE_BEND.
  */
 function loopSegs(c: LoopCfg) {
   const sharp = clamp(c.sharp, 0.5, 1.8);
   const dk = clamp(c.depth, 0.5, 1.6);
   const k = clamp(c.compact, 0, 1);
-  // viewW is 0 on the first server render. Desk assumes a laptop until
-  // the real width arrives; phones pass their own width once measured.
-  const wide = c.viewW > 0 ? c.viewW : k > 0 ? 390 : 1360;
-  // Height-fit scale the path is drawn for. measureLoop refines it.
-  const S0 = 0.4;
-  // Long return: the doubled loop fills most of the width instead of
-  // sitting in the middle with empty runs on either side.
-  const back = ((k > 0 ? 0.62 : 0.5) * wide) / S0;
-  const flank = ((k > 0 ? 0.28 : 0.34) * wide) / S0;
-  const bleed = k > 0 ? 140 : Math.max(220, (wide - 1200) * 0.5);
-  let R1 = clamp((k > 0 ? 0.22 : 0.16) * wide / S0, c.minR, k > 0 ? 170 : 320) / sharp;
-  R1 = Math.max(R1, c.minR);
-  const R2 = Math.max(c.minR, R1 * 0.92);
-  const wave = (k > 0 ? 0.38 : 0.5) * (dk / 0.62);
-  let th = 0;
-  const seg = (len: number, target: number, kind: LoopSeg['kind']): LoopSeg => {
-    const d = target - th;
-    th = target;
-    return { len: Math.max(64, len), d, kind };
-  };
-  // One S: bend off the axis, back across it, then settle. Not a straight run.
-  const sCurve = (total: number, base: number, amp: number) => {
-    const len = Math.max(90, total / 2.4);
-    return [
-      seg(len, base + amp, 'bump'),
-      seg(len * 1.15, base - amp * 0.7, 'bump'),
-      seg(Math.max(80, len * 0.55), base, 'bump'),
-    ];
-  };
-  const lead = sCurve(flank + bleed, 0.03, wave);
-  const hairpin = seg((Math.abs(Math.PI + 0.04 - th) * R1) / (1 - RAMP), Math.PI + 0.04, 'turn');
-  const ret = sCurve(back, Math.PI, wave * 0.55);
-  const exitTurn = seg((Math.abs(TAU - 0.05 - th) * R2) / (1 - RAMP), TAU - 0.05, 'turn');
-  const tail = sCurve(flank + bleed, TAU, wave);
-  const segs = [...lead, hairpin, ...ret, exitTurn, ...tail];
-  const bleedL = bleed;
-  const bleedR = bleed;
-  return { segs, th0: 0, dk, Lp: segs.reduce((a, s) => a + s.len, 0), bleedL, bleedR };
+  const R1 = Math.max(c.minR, (150 * (1 - 0.15 * k)) / sharp);
+  const R2 = Math.max(c.minR, (135 * (1 - 0.15 * k)) / sharp);
+  const th0 = 0.04;
+  const thA = clamp(0.18 * dk, 0.1, 0.55); // end of the approach: still mostly +x, opened toward the camera by depth
+  const thB = -Math.PI + 0.12 * dk; // after hairpin 1: back along -x, only slightly away
+  const thB2 = thB + 0.05;
+  const thC = -0.1 * dk; // after hairpin 2: to the right, gently receding
+  const thEnd = 0;
+  // Straight bleed past the fitted body so the strip runs off both page edges.
+  // Phones cut hard: every world-px of bleed is more CSS-3D slices, and that is
+  // what stalls iPhone Safari. Portrait phones already clear both edges.
+  // Wider compact windows (just under 768px, landscape, short laptop windows)
+  // are height-limited, so that short tail stops on screen. Grow the right
+  // run with the extra width; the fitted hairpin does not include this bleed.
+  // Desktop is height-limited too once the band is short: the hairpin is
+  // centred and scaled to the band, so a fixed run stops short of a wide
+  // viewport. ~1.9 world-px per extra screen-px keeps the left edge covered
+  // at the height-fit scale (~0.3). The right run is already longer.
+  const wide = Math.max(0, c.viewW);
+  const extraCompact = k > 0 ? Math.max(0, wide - 420) : 0;
+  const extraL = k > 0 ? 0 : Math.max(0, wide - 1100);
+  const extraR = k > 0 ? 0 : Math.max(0, wide - 1500);
+  const bleedL = 1100 - 750 * k + extraL * 1.9;
+  const bleedR = 2400 - 1950 * k + extraCompact * 3.4 + extraR * 2.2;
+  const segs: LoopSeg[] = [
+    { len: 80 - 40 * k + bleedL, d: 0, kind: 'bump' }, // run-in, continues off the left edge
+    { len: 720 - 500 * k, d: thA - th0, kind: 'bump' }, // arch towards the hairpin
+    { len: (Math.abs(thB - thA) * R1) / (1 - RAMP), d: thB - thA, kind: 'turn' },
+    { len: 260 - 160 * k, d: thB2 - thB, kind: 'bump' },
+    { len: (Math.abs(thC - thB2) * R2) / (1 - RAMP), d: thC - thB2, kind: 'turn' },
+    { len: 820 - 600 * k, d: thEnd - thC, kind: 'bump' }, // receding leg
+    { len: 160 - 100 * k + bleedR, d: 0, kind: 'bump' }, // tail, continues off the right edge
+  ];
+  return { segs, th0, dk, Lp: segs.reduce((a, s) => a + s.len, 0), bleedL, bleedR };
 }
 
 function generateLoop(c: LoopCfg, pad: number, bank = 0.05): PathTable {
@@ -388,18 +386,13 @@ function generateLoop(c: LoopCfg, pad: number, bank = 0.05): PathTable {
     }
     return 0; // straight before / after the visible path
   };
-  const turns: number[][] = [];
-  {
-    let acc = 0;
-    for (const s of segs) {
-      if (s.kind === 'turn') turns.push([acc, acc + s.len]);
-      acc += s.len;
-    }
-  }
-  const span0 = turns[0]?.[0] ?? 0;
-  const turnEnd = turns[0]?.[1] ?? span0;
-  const ret0 = turns[1]?.[0] ?? span0;
-  const ret1 = turns[1]?.[1] ?? Lp;
+  // the legs climb through the hairpins, so the zig-zag stacks into tiers on screen
+  const LIFT = 70 * dk;
+  const t1a = segStart[2] - 120;
+  const t1b = segStart[2] + segs[2].len + 420;
+  const t2a = segStart[4] - 120;
+  const t2b = segStart[4] + segs[4].len + 420;
+  const yAt = (s: number) => -LIFT * smooth((s - t1a) / (t1b - t1a)) - LIFT * smooth((s - t2a) / (t2b - t2a));
 
   const pos = new Float64Array((TABLE + 1) * 3);
   const dn = new Float64Array((TABLE + 1) * 3);
@@ -407,16 +400,9 @@ function generateLoop(c: LoopCfg, pad: number, bank = 0.05): PathTable {
   let x = 0,
     z = 0,
     a = th0;
-  let heroS = span0 + ((turns[0]?.[1] ?? span0) - span0) * 0.5;
-  let heroZ = -1e9;
   for (let i = 0; i <= TABLE; i++) {
-    const pathS = i * ds - pad;
-    if (pathS >= span0 && pathS <= turnEnd && z > heroZ) {
-      heroZ = z;
-      heroS = pathS;
-    }
     pos[i * 3] = x;
-    pos[i * 3 + 1] = 0;
+    pos[i * 3 + 1] = yAt(i * ds);
     pos[i * 3 + 2] = z;
     th[i] = a;
     for (let k = 0; k < SUB; k++) {
@@ -429,44 +415,30 @@ function generateLoop(c: LoopCfg, pad: number, bank = 0.05): PathTable {
       a += 0.5 * (k0 + k1) * sub;
     }
   }
-  // Centre X/Z on the curl while Y is still flat. The climb is added after,
-  // so the low strand stays in the band and the return leg rises out of it.
+  // Centre on the fitted body only. The straight bleed past either end must not shift the hairpin.
   const body0 = pad + bleedL;
   const body1 = pad + Lp - bleedR;
-  let mnz = 1e9,
+  let mny = 1e9,
+    mxy = -1e9,
+    mnz = 1e9,
     mxz = -1e9,
     cmx = 1e9,
     cMx = -1e9;
   for (let i = clamp(Math.round(body0 / ds), 0, TABLE); i <= clamp(Math.round(body1 / ds), 0, TABLE); i++) {
+    mny = Math.min(mny, pos[i * 3 + 1]);
+    mxy = Math.max(mxy, pos[i * 3 + 1]);
     mnz = Math.min(mnz, pos[i * 3 + 2]);
     mxz = Math.max(mxz, pos[i * 3 + 2]);
     cmx = Math.min(cmx, pos[i * 3]);
     cMx = Math.max(cMx, pos[i * 3]);
   }
   const ox = (cmx + cMx) / 2,
+    oy = (mny + mxy) / 2,
     oz = (mnz + mxz) / 2;
   for (let i = 0; i <= TABLE; i++) {
     pos[i * 3] -= ox;
+    pos[i * 3 + 1] -= oy;
     pos[i * 3 + 2] -= oz;
-  }
-  // The return leg climbs (negative Y is up) so the loop can pass behind
-  // the frame. The S on each side is the heading, not this lift.
-  // measureLoop ignores Y, or the band would shrink the loop away.
-  const kCompact = clamp(c.compact, 0, 1);
-  const RISE = (kCompact > 0 ? 180 : 320) * (dk / 0.62);
-  const smooth = (u: number) => {
-    u = clamp(u, 0, 1);
-    return u * u * (3 - 2 * u);
-  };
-  const liftAt = (s: number) => {
-    if (s <= span0) return 0;
-    if (s < turnEnd) return smooth((s - span0) / Math.max(1, turnEnd - span0));
-    if (s <= ret0) return 1;
-    if (s < ret1) return 1 - smooth((s - ret0) / Math.max(1, ret1 - ret0));
-    return 0;
-  };
-  for (let i = 0; i <= TABLE; i++) {
-    pos[i * 3 + 1] = -RISE * liftAt(i * ds - pad);
   }
   // "down" vectors: world-down made perpendicular to the tangent, banked a little into the turns
   const BANK = bank;
@@ -507,10 +479,9 @@ function generateLoop(c: LoopCfg, pad: number, bank = 0.05): PathTable {
     zScale: Math.max(200, (mxz - mnz) / 2),
     fitH: 0,
     Lp,
-    // Nearest point of the first turn: the outlined frame sits on the curl.
-    heroS: clamp(heroS, 0, Lp),
-    // Outer bows run off the viewport. The fitted body is the curl and the inner waves.
-    core: [Math.min(bleedL, Lp * 0.2), Math.max(Lp - bleedR, Lp * 0.8)],
+    heroS: segs[0].len + segs[1].len * 0.78,
+    // Fitted span is the hairpin body. bleedL / bleedR run outside it and off the viewport.
+    core: [bleedL + END_FADE * 0.16, Lp - bleedR - END_FADE * 0.35],
   };
 }
 
@@ -1612,30 +1583,28 @@ export default function FilmStrip3D({
     /** loop: fit the visible ribbon (approach, both hairpins, receding leg; film edges included) and centre it */
     const measureLoop = () => {
       const h = rootH;
+      const w = rootW;
       const t0 = LOOP_TILT * (Math.PI / 180);
       const ct = Math.cos(t0),
         st = Math.sin(t0);
       const [c0, c1] = table.core ?? [0, Lp];
+      const pts: number[][] = [];
       // one slice past each end: a slice's screen box reaches past the centreline sample
       const s0 = Math.max(0, c0 - 36);
       const s1 = Math.min(Lp, c1 + 28);
+      for (let s = s0; s <= s1; s += 14) {
+        sample(s + pad, pA, dA);
+        for (const e of [-HALF_H, HALF_H]) {
+          const x = pA[0] + dA[0] * e,
+            y = pA[1] + dA[1] * e,
+            z = pA[2] + dA[2] * e;
+          pts.push([x, ct * y + st * z, -st * y + ct * z]);
+        }
+      }
       const vpY = 0.5;
       let px = 0,
         py = 0,
         sc = 1;
-      // Fit the film thickness and the depth tilt only. The flank waves and
-      // the raised return leg are allowed to leave the band (they pass
-      // behind the frame); fitting them used to shrink the loop flat.
-      const fitPts: number[][] = [];
-      for (let s = s0; s <= s1; s += 14) {
-        sample(s + pad, pA, dA);
-        for (const e of [-HALF_H, HALF_H]) {
-          const x = pA[0],
-            y = e,
-            z = pA[2];
-          fitPts.push([x, ct * y + st * z, -st * y + ct * z]);
-        }
-      }
       // shX is added in camera space, then multiplied by each point's own perspective factor.
       // Correct the shift by that factor so the projected box actually lands on the container centre
       // (subtracting raw projected pixels walks the near foreground off the left).
@@ -1648,7 +1617,7 @@ export default function FilmStrip3D({
           kR = 1,
           kT = 1,
           kB = 1;
-        for (const p of fitPts) {
+        for (const p of pts) {
           const k = D / Math.max(40, D - p[2]);
           const X = (p[0] + px) * k,
             Y = (p[1] + py) * k;
@@ -1680,11 +1649,11 @@ export default function FilmStrip3D({
         if (Math.abs(midX) < 0.5 && Math.abs(midY) < 0.5) break;
       }
       const fitted = bounds();
-      // Scale from the seated band (climb removed). The hairpin is authored
-      // to the viewport width, so fitting width as well used to shrink the
-      // curl into a kink. Extra width, and the climb, run outside the band.
-      const sH = (h * 0.8) / Math.max(1, fitted.y1 - fitted.y0);
-      sc = sH;
+      // Fill more of the width on phones so the ribbon reaches the left edge.
+      const compactFit = w < 768 || h < 560;
+      const fillX = compactFit ? 0.92 : 0.7;
+      const fillY = compactFit ? 0.78 : 0.72;
+      sc = Math.min((w * fillX) / (fitted.x1 - fitted.x0), (h * fillY) / (fitted.y1 - fitted.y0));
       S = clamp(sc, 0.2, 2.2);
       shX = px;
       shY = py;
@@ -1762,7 +1731,12 @@ export default function FilmStrip3D({
     };
 
     const kick = () => {
-      if (!activeRef.current) return;
+      // Wall projection keeps this component posed, but the loop stays off
+      // until the camera is on the photos page.
+      if (!activeRef.current) {
+        render();
+        return;
+      }
       if (!rafRunning) {
         if (shouldRun()) start();
         else render();

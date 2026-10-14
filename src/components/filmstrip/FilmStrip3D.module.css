@@ -90,10 +90,10 @@
   /* --w = slice width (px). The box reaches 2px past EACH joint (4px total overlap, symmetric so that
      front- and back-facing neighbours both overlap) => the film is gap-free at any bend angle */
   width: calc(var(--w, 26) * 1px + 4px);
-  height: 248px;
-  margin: -124px 0 0 -2px;
+  height: 184px;
+  margin: -92px 0 0 -2px;
   /* local origin = the left joint (2px in), vertical centre: JS puts this point on the path */
-  transform-origin: 2px 124px;
+  transform-origin: 2px 92px;
   overflow: hidden;
   /* no will-change: promoting 100+ slices to compositor layers OOMs iPhone Safari */
   pointer-events: none; /* clicks go to the .hit buttons */
@@ -113,14 +113,14 @@
      makes Chrome re-rasterise every transformed slice on every frame. */
   background-repeat: no-repeat, repeat-x, repeat-x, repeat-x, no-repeat;
   /* print bitmap is full strip height: stock on the outer top band, frame # on the
-     outer bottom band. Hole tiles (18px) sit against the photo (top 48px, height 152px),
-     so the type is outside the perforations. Grain is one tile tall (248px), so it
+     outer bottom band. Hole tiles (18px) sit against the photo (top 36px, height 112px),
+     so the type is outside the perforations. Grain is one tile tall (184px), so it
      does not repeat vertically across the film. */
-  background-size: calc(var(--pw, 200) * 1px) 248px, 25px 18px, 25px 18px, 720px 248px, 100% 100%;
+  background-size: calc(var(--pw, 200) * 1px) 184px, 25px 18px, 25px 18px, 720px 184px, 100% 100%;
   background-position:
     calc((2 - var(--u0, 0)) * 1px) 0,
-    calc(var(--ph, 0) * 1px) 30px,
-    calc(var(--ph, 0) * 1px) 200px,
+    calc(var(--ph, 0) * 1px) 18px,
+    calc(var(--ph, 0) * 1px) 148px,
     calc(var(--gx, 0) * 1px) 0,
     0 0;
   /* x position of the same plate inside .ph, so scratches cross the photo edge unbroken */
@@ -133,16 +133,16 @@
   position: absolute;
   z-index: 1;
   left: calc((var(--gap, 30) * 0.5 - var(--u0, 0) + 2) * 1px);
-  top: 48px;
+  top: 36px;
   width: calc((var(--pw, 200) - var(--gap, 30)) * 1px);
-  height: 152px;
+  height: 112px;
   border-radius: 0;
   background-color: #23252a;
-  /* Grain sits on top of the photo (set inline with the photo). Same 720×248
+  /* Grain sits on top of the photo (set inline with the photo). Same 720×184
      plate as the slice, shifted by --grain-x so it is stuck to this frame. */
   background-image: url('/film-scratches-grain.webp');
-  background-size: 720px 248px;
-  background-position: var(--grain-x, 0px) -48px;
+  background-size: 720px 184px;
+  background-position: var(--grain-x, 0px) -36px;
   background-repeat: repeat-x;
   /* hairline dark ring + subtle inner highlight */
   box-shadow:
@@ -156,9 +156,9 @@
   position: absolute;
   z-index: 2;
   left: calc((var(--gap, 30) * 0.5 - var(--u0, 0) + 2) * 1px);
-  top: 48px;
+  top: 36px;
   width: calc((var(--pw, 200) - var(--gap, 30)) * 1px);
-  height: 152px;
+  height: 112px;
   border-radius: 0;
   pointer-events: none;
   background:
@@ -223,8 +223,8 @@
   left: 50%;
   top: 50%;
   width: calc((var(--pw, 200) - var(--gap, 30)) * 1px);
-  height: 152px;
-  margin: -76px 0 0 calc((var(--pw, 200) - var(--gap, 30)) * -0.5px);
+  height: 112px;
+  margin: -56px 0 0 calc((var(--pw, 200) - var(--gap, 30)) * -0.5px);
   padding: 0;
   border: 0;
   border-radius: 0;

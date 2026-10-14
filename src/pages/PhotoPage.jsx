@@ -57,7 +57,7 @@ const Slide = styled.img`
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   display: block;
   opacity: ${(p) => (p.$show ? 1 : 0)};
   transition: opacity 0.85s ease;
@@ -65,19 +65,17 @@ const Slide = styled.img`
   z-index: ${(p) => (p.$show ? 2 : 1)};
 `
 
-/** Compact band under the frame, full viewport width. The curl may paint
-    upward out of this slot; the frame sits in a higher layer and blocks
-    hits where they overlap. */
+/** Compact hairpin under the frame. Full viewport width, even if a parent is inset. */
 const CurlBand = styled.div`
-  flex: 0 0 clamp(140px, 36%, 300px);
-  height: clamp(140px, 36%, 300px);
+  flex: 0 0 clamp(72px, 22%, 168px);
+  height: clamp(72px, 22%, 168px);
   width: 100vw;
   max-width: 100vw;
   margin-left: calc(50% - 50vw);
   min-height: 0;
   position: relative;
   z-index: 1;
-  overflow: visible;
+  overflow: hidden;
 `
 
 const StripRail = styled.div`
@@ -150,8 +148,6 @@ const StripShot = styled.div`
 `
 
 const STRIP_CAP = 16
-/* Below this the frame and a curled band cannot share the page. Phones sit above it. */
-const MIN_PAGE_H = 200
 
 function supportsCss3d() {
   return typeof CSS !== 'undefined'
@@ -430,8 +426,6 @@ function FilmStrip({
 
 export default function PhotoPage({ active = true }) {
   const location = useLocation()
-  const panelRef = useRef(null)
-  const [pageH, setPageH] = useState(0)
   const [can3d] = useState(() => typeof window !== 'undefined' && supportsCss3d())
   const [photos, setPhotos] = useState([])
   const [status, setStatus] = useState('loading')
@@ -439,22 +433,14 @@ export default function PhotoPage({ active = true }) {
   const [selectedImage, setSelectedImage] = useState(null)
   const [featuredIndex, setFeaturedIndex] = useState(0)
   const [paused, setPaused] = useState(false)
+  const [aspect, setAspect] = useState(4 / 3)
   const [layers, setLayers] = useState([{ key: 0, index: 0, show: true }])
   const layerKey = useRef(0)
+  const aspects = useRef({})
   const resumeTimer = useRef(0)
   const [tabHidden, setTabHidden] = useState(
     () => typeof document !== 'undefined' && document.hidden,
   )
-
-  useEffect(() => {
-    const el = panelRef.current
-    if (!el) return undefined
-    const measure = () => setPageH(el.clientHeight)
-    measure()
-    const ro = new ResizeObserver(measure)
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
 
   useEffect(() => {
     const onVis = () => setTabHidden(document.hidden)
@@ -495,6 +481,18 @@ export default function PhotoPage({ active = true }) {
     return () => window.clearTimeout(clear)
   }, [featuredIndex])
 
+  useEffect(() => {
+    const cached = aspects.current[featuredIndex]
+    if (cached) {
+      setAspect(cached)
+      return
+    }
+    const photo = photos[featuredIndex]
+    const w = Number(photo?.width)
+    const h = Number(photo?.height)
+    if (w > 0 && h > 0) setAspect(w / h)
+  }, [featuredIndex, photos])
+
   // Auto-advance every ~4.5s — strip recenters, frame follows.
   // The page stays mounted on the wall even when that board is hidden.
   // While the camera is still on the way, `active` is false and the frame holds.
@@ -534,6 +532,13 @@ export default function PhotoPage({ active = true }) {
     setIsModalOpen(true)
   }
 
+  const rememberAspect = (index, img) => {
+    if (!img?.naturalWidth || !img?.naturalHeight) return
+    const next = img.naturalWidth / img.naturalHeight
+    aspects.current[index] = next
+    if (index === featuredIndex) setAspect(next)
+  }
+
   const featured = photos[featuredIndex] || photos[0]
   const mediaItems = photos.map((photo) => ({ type: 'image', image: photo }))
   const caption = `${String(featuredIndex + 1).padStart(2, '0')} / ${String(photos.length).padStart(2, '0')}`
@@ -546,15 +551,15 @@ export default function PhotoPage({ active = true }) {
     return entries
   }, [photos])
   const curlItems = useMemo(() => stripItems.map((entry) => entry.item), [stripItems])
-  // Same band on the wall and after arrival. The curl stays mounted but
-  // paused until the camera lands (`active`). No CSS 3D, or a page so short
-  // the frame would be crowded, keeps the original thumbnail rail.
+  // Same 3D strip on the wall and after arrival. `active` only starts the
+  // rAF loop once the camera is on this page. The thumbnail rail is only
+  // for browsers without CSS 3D.
   const stripSelect = stripItems.findIndex((entry) => entry.index === featuredIndex)
-  const useCurl = can3d && stripItems.length > 0 && (pageH === 0 || pageH >= MIN_PAGE_H)
+  const useCurl = can3d && stripItems.length > 0
 
   return (
     <>
-      <Panel ref={panelRef}>
+      <Panel>
         {status === 'loading' && <FrostNote>Loading photos…</FrostNote>}
         {status === 'empty' && <FrostNote>No photos yet.</FrostNote>}
         {status === 'error' && <FrostNote>Could not load photos.</FrostNote>}
@@ -562,6 +567,7 @@ export default function PhotoPage({ active = true }) {
           <>
             <Stage>
               <OrnatePhotoFrame
+                aspect={aspect}
                 caption={caption}
                 onClick={() => open(featured, featuredIndex)}
                 aria-label={`Open featured photo: ${imageAlt(featured, 'Photograph by Ronnie Foreman')}`}
@@ -579,6 +585,7 @@ export default function PhotoPage({ active = true }) {
                       alt={layer.show ? imageAlt(photo, 'Photograph by Ronnie Foreman') : ''}
                       aria-hidden={layer.show ? undefined : true}
                       $show={layer.show}
+                      onLoad={(e) => rememberAspect(layer.index, e.currentTarget)}
                     />
                   )
                 })}

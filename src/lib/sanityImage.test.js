@@ -28,9 +28,10 @@ describe('photoSources', () => {
   it('does not ask for a width larger than the file', () => {
     const sources = photoSources(photo)
     assert.match(sources.src, /w=960/)
+    assert.equal(sources.srcSet.includes('1280w'), false)
     assert.equal(sources.srcSet.includes('1600w'), false)
     assert.match(sources.srcSet, /640w/)
-    assert.match(sources.srcSet, /1280w/)
+    assert.match(sources.srcSet, /1200w/)
     assert.equal(sources.width, 1296)
     assert.equal(sources.height, 1620)
   })

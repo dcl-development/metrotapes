@@ -140,7 +140,7 @@ const SLICE_HI = 26; // nominal slice width (world px)
 const SLICE_LOW = 40; // low-power: wider slices -> ~35% fewer nodes
 const MAX_EDGE = 0.6; // world px: max misalignment of the outer corners of two neighbouring slices
 const SLICE_LOOP = 20; // loop variant: narrower slices so the hairpins stay smooth (≤ ~8° per slice)
-const SLICE_LOOP_LOW = 56; // phones: fewer DOM layers > razor hairpins
+const SLICE_LOOP_LOW = 72; // phone / weak: fewer DOM layers than razor hairpins
 const LOOP_TILT = 8; // shallow pitch: depth reads as perspective, not as band height
 const MAX_SLICE_BEND = 0.15; // rad (≈ 8.6°): floor of the loop's hairpin radius = slice width / this
 const MIN_BEND_R = 200; // tightest allowed bend radius (world px) — lower = sharper S folds
@@ -805,35 +805,23 @@ function supportsFilm3D() {
   );
 }
 
-let imageSetFn: 'image-set' | '-webkit-image-set' | 'none' | null = null;
-function imageSetFunction() {
-  if (imageSetFn) return imageSetFn;
-  const probe = 'url("data:image/gif;base64,R0lGODlhAQABAAAAACw=") 1x';
-  if (typeof CSS !== 'undefined' && CSS.supports?.('background-image', `image-set(${probe})`)) imageSetFn = 'image-set';
-  else if (typeof CSS !== 'undefined' && CSS.supports?.('background-image', `-webkit-image-set(${probe})`))
-    imageSetFn = '-webkit-image-set';
-  else imageSetFn = 'none';
-  return imageSetFn;
-}
-
-/** Sharp photo under the scratch plate. One declaration so the browser fetches a single photo candidate.
- *  Grain is a separate layer (not inside image-set) and is positioned with --grain-x, which
- *  changes only when a slice is recycled or flipped — not every animation frame. */
-function paintPhoto(el: HTMLElement, it: FilmStripItem, dense: boolean, grain: string = GRAIN) {
-  const placeholder = it.placeholder ? cssUrl(it.placeholder) : '';
+/** Photo element inside a slice. Grain stays a stylesheet layer (a var() inside
+ *  background-image makes Chrome re-raster every transformed slice each frame).
+ *  `loading=lazy` skips slices the loop has not revealed yet. */
+function paintPhoto(el: HTMLElement, it: FilmStripItem, dense: boolean) {
+  const img = el.querySelector('img');
+  if (!(img instanceof HTMLImageElement)) return;
+  if (it.placeholder) el.style.backgroundImage = cssUrl(it.placeholder);
+  else el.style.removeProperty('background-image');
   const src2x = it.src2x;
-  const fn = dense && src2x ? imageSetFunction() : 'none';
-  const photo =
-    fn === 'none' || !src2x ? cssUrl(it.src) : `${fn}(${cssUrl(it.src)} 1x, ${cssUrl(src2x)} 2x)`;
-  // Concrete url(), not a CSS variable: a var() inside background-image makes
-  // Chrome re-raster every transformed slice on every frame.
-  const layers = [grain, photo];
-  if (placeholder) layers.push(placeholder);
-  const rest = layers.length - 1;
-  el.style.backgroundImage = layers.join(', ');
-  el.style.backgroundSize = [`${GRAIN_TILE}px ${STRIP_H}px`, ...Array(rest).fill('cover')].join(', ');
-  el.style.backgroundRepeat = ['repeat-x', ...Array(rest).fill('no-repeat')].join(', ');
-  el.style.backgroundPosition = [`var(--grain-x) -${PHOTO_TOP}px`, ...Array(rest).fill('50% 50%')].join(', ');
+  const use2x = dense && !!src2x;
+  if (img.getAttribute('fetchpriority') !== 'low') img.setAttribute('fetchpriority', 'low');
+  if (img.getAttribute('src') !== it.src) img.src = it.src;
+  const nextSet = use2x ? `${it.src} 1x, ${src2x} 2x` : '';
+  if ((img.getAttribute('srcset') || '') !== nextSet) {
+    if (nextSet) img.setAttribute('srcset', nextSet);
+    else img.removeAttribute('srcset');
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -915,19 +903,18 @@ export default function FilmStrip3D({
       window.removeEventListener('resize', apply);
     };
   }, [mode]);
-  // Phones use wider slices — iPhone Safari chokes on 200+ 3D layers.
-  // That must not change the desktop hairpin. Weak machines only drop to 30fps.
-  const low = lowPower || tier === 'compact';
+  // Phones, the low gfx tier, and weak CPUs use wider slices. A 4-core desktop
+  // used to keep the fine 20px slivers and pay for them in DOM layers.
+  // The hairpin radius stays the desktop one — only the tessellation changes.
+  const weakDevice = useMemo(
+    () => (typeof navigator !== 'undefined' ? detectWeakDevice() : false),
+    [],
+  );
+  const low = Boolean(lowPower) || tier === 'compact' || weakDevice;
   const baseCount = low ? 12 : 14;
   const isLoop = variant === 'loop';
   const gapC = 2 * Math.round(clamp(Number.isFinite(gap) ? gap : DEFAULT_GAP, MIN_GAP, MAX_GAP) / 2); // even => whole-pixel margins
-  const target = isLoop
-    ? tier === 'compact' || lowPower
-      ? SLICE_LOOP_LOW
-      : SLICE_LOOP
-    : low
-      ? SLICE_LOW
-      : SLICE_HI;
+  const target = isLoop ? (low ? SLICE_LOOP_LOW : SLICE_LOOP) : low ? SLICE_LOW : SLICE_HI;
 
   // Layout from the declared ratios: computed once per items change (no DOM reads).
   const layoutKey = useMemo(
@@ -1010,7 +997,6 @@ export default function FilmStrip3D({
   useIsoLayoutEffect(() => {
     const root = rootRef.current;
     if (!root || flat || tier === 'ssr') return;
-    const grainImage = cssUrl(grainSrc || DEFAULT_GRAIN_SRC);
     const fontStack = printFont || PRINT_FONT;
     const N = frameCount; // frame (button) ring
     const NS = sliceCount; // slice ring
@@ -1229,11 +1215,11 @@ export default function FilmStrip3D({
       st.setProperty('--pw', pitch.toFixed(2));
       const ph = slices[slot].firstElementChild as HTMLElement;
       const dense = !preferSmall;
-      const paintKey = `${it.src}|${dense ? '2' : '1'}`;
+      const paintKey = `${it.src}|${dense && it.src2x ? '2' : '1'}`;
       if (ph.dataset.paint !== paintKey) {
         ph.dataset.paint = paintKey;
         ph.dataset.src = it.src;
-        paintPhoto(ph, it, dense, grainImage);
+        paintPhoto(ph, it, dense);
       }
       sliceIdx[slot] = idx;
       st.backgroundImage = `${printFor(slot)}, ${HOLE}, ${HOLE}, ${GRAIN}, ${BASE_SHADE}`;
@@ -1992,7 +1978,7 @@ export default function FilmStrip3D({
       root.removeEventListener('wheel', onWheel);
       api.current = null;
     };
-  }, [variant, amplitude, loopCfg, perspective, plan, low, frameCount, sliceCount, gapC, stockLabel, flat, tier, grainSrc, printFont]);
+  }, [variant, amplitude, loopCfg, perspective, plan, low, frameCount, sliceCount, gapC, stockLabel, flat, tier, printFont]);
 
   // Layout, not a passive effect: the loop must be cancelled before paint
   // when the camera leaves this page. Tiers, reduced motion, and the
@@ -2099,6 +2085,7 @@ export default function FilmStrip3D({
       data-variant={variant}
       data-fs3d-root=""
       data-compact={tier === 'ssr' ? undefined : tier === 'compact' ? 'true' : 'false'}
+      data-lite={weakDevice || lowPower ? 'true' : undefined}
       data-tier={tier === 'ssr' ? undefined : tier}
       data-renderer={flat ? 'flat' : ready ? '3d' : undefined}
       onPointerDown={(e) => api.current?.pointerDown(e)}
@@ -2118,7 +2105,9 @@ export default function FilmStrip3D({
           {show3d &&
             Array.from({ length: sliceCount }, (_, i) => (
               <div key={i} className={styles.slice} data-fs3d-slice={i} style={SLICE_INIT} aria-hidden="true">
-                <i className={styles.ph} />
+                <i className={styles.ph}>
+                  <img alt="" loading="lazy" decoding="async" draggable={false} />
+                </i>
               </div>
             ))}
           {show3d &&

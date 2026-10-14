@@ -83,15 +83,20 @@ const Shell = styled.button`
   }
 `
 
+const FRAME_SET = `image-set(
+  url('/ornate-frame.webp') type('image/webp'),
+  url('/ornate-frame.png') type('image/png')
+)`
+
 const Piece = styled.div`
   grid-area: ${(p) => p.$area};
   pointer-events: none;
   z-index: 3;
-  background-image: url('/ornate-frame.png');
-  background-image: image-set(
-    url('/ornate-frame.webp') type('image/webp'),
-    url('/ornate-frame.png') type('image/png')
-  );
+  /* The bitmap stays out of the stylesheet until the camera is heading
+     to the photos page (or the intro has gone idle). Eight slices share
+     one request. */
+  background-image: ${(p) => (p.$paint ? 'url("/ornate-frame.png")' : 'none')};
+  background-image: ${(p) => (p.$paint ? FRAME_SET : 'none')};
   background-repeat: no-repeat;
   background-size: ${(p) => `${(IMG_W / p.$sw) * 100}% ${(IMG_H / p.$sh) * 100}%`};
   background-position: ${(p) => `${slicePos(p.$sx, p.$sw, IMG_W)} ${slicePos(p.$sy, p.$sh, IMG_H)}`};
@@ -126,6 +131,7 @@ const Caption = styled.div`
 export default function OrnatePhotoFrame({
   aspect = 4 / 3,
   caption = '',
+  paint = true,
   children,
   onClick,
   onMouseEnter,
@@ -152,6 +158,7 @@ export default function OrnatePhotoFrame({
       {PIECES.map((piece) => (
         <Piece
           key={piece.area}
+          $paint={paint}
           $area={piece.area}
           $sx={piece.sx}
           $sy={piece.sy}

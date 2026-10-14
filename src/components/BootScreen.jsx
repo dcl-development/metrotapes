@@ -184,6 +184,7 @@ export default function BootScreen({ leaving = false }) {
   return (
     <Root
       $leaving={leaving}
+      data-boot-screen=""
       role="status"
       aria-live="polite"
       aria-busy="true"

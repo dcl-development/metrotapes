@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { createPortal } from 'react-dom'
 import { fetchPhotos } from '../lib/contentApi'
 import { imageAlt } from '../lib/sanity'
-import { imageUrl, photoSources, stripThumb } from '../lib/sanityImage'
-import FilmStrip3D from '../components/filmstrip/FilmStrip3D'
+import { filmThumb, framePhotoUrl, framePhotoWidth, stripThumb } from '../lib/sanityImage'
+import { mountPhotoStrip, prefetchImages, preloadImage, scheduleIdleWarm, showFullPhoto } from '../lib/photoLoad'
+import { useGfx } from '../lib/useGfx'
+
+const FilmStrip3D = lazy(() => import('../components/filmstrip/FilmStrip3D'))
 import styled from 'styled-components'
 import ImageModal from '../components/ImageModal'
 import OrnatePhotoFrame from '../components/OrnatePhotoFrame'
@@ -150,6 +153,52 @@ const StripShot = styled.div`
 `
 
 const STRIP_CAP = 16
+const PREVIEW_CAP = 10
+
+const FrozenRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: ${GAP}px;
+  height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+
+  img {
+    height: 70%;
+    width: auto;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    flex: 0 0 auto;
+    opacity: 0.8;
+  }
+`
+
+function FrozenStrip({ photos }) {
+  return (
+    <FrozenRow aria-hidden>
+      {photos.slice(0, PREVIEW_CAP).map((photo, index) => {
+        const thumb = stripThumb(photo)
+        if (!thumb.src) return null
+        return (
+          <img
+            key={photo?.asset?._ref || index}
+            src={thumb.src}
+            width={thumb.width}
+            height={thumb.height}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            draggable={false}
+            ref={(node) => {
+              if (node) node.setAttribute('fetchpriority', 'low')
+            }}
+          />
+        )
+      })}
+    </FrozenRow>
+  )
+}
 
 function supportsCss3d() {
   return typeof CSS !== 'undefined'
@@ -158,20 +207,27 @@ function supportsCss3d() {
 }
 
 function filmItem(photo, index) {
-  const sources = photoSources(photo)
-  const src = imageUrl(photo, { width: 640 }) || sources.src
+  const src = filmThumb(photo)
   if (!src) return null
-  const alt = imageAlt(photo, 'Photograph by Ronnie Foreman')
-  const sharp = sources.src && sources.src !== src ? sources.src : undefined
+  const width = Number(photo?.width) || 0
+  const height = Number(photo?.height) || 0
   return {
     src,
-    src2x: sharp,
-    alt,
+    alt: imageAlt(photo, 'Photograph by Ronnie Foreman'),
     label: `Show photo ${index + 1}`,
-    width: sources.width,
-    height: sources.height,
-    aspect: sources.width && sources.height ? sources.width / sources.height : undefined,
+    width: width || undefined,
+    height: height || undefined,
+    aspect: width > 0 && height > 0 ? width / height : undefined,
   }
+}
+
+function LiveFilmStrip(props) {
+  const { tier } = useGfx()
+  return (
+    <Suspense fallback={null}>
+      <FilmStrip3D {...props} lowPower={tier === 'low'} />
+    </Suspense>
+  )
 }
 
 function shotWidth() {
@@ -413,10 +469,11 @@ function FilmStrip({
             $on={cell.real === active}
             aria-hidden
           >
-            <img
+              <img
               {...stripThumb(cell.photo)}
               alt=""
               loading="lazy"
+              decoding="async"
               draggable={false}
             />
           </StripShot>
@@ -429,6 +486,13 @@ function FilmStrip({
 export default function PhotoPage({ active = true }) {
   const location = useLocation()
   const [can3d] = useState(() => typeof window !== 'undefined' && supportsCss3d())
+  const [idleWarm, setIdleWarm] = useState(false)
+  const frameW = useMemo(() => {
+    if (typeof window === 'undefined') return 960
+    return framePhotoWidth(window.innerWidth, window.devicePixelRatio || 1)
+  }, [])
+  const full = showFullPhoto({ pathname: location.pathname })
+  const showStrip = mountPhotoStrip({ active })
   const [photos, setPhotos] = useState([])
   const [status, setStatus] = useState('loading')
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -452,6 +516,20 @@ export default function PhotoPage({ active = true }) {
     document.addEventListener('visibilitychange', onVis)
     return () => document.removeEventListener('visibilitychange', onVis)
   }, [])
+
+  // Home stays on a thumbnail. After the intro, idle-warm the frame bitmap
+  // and the next large still so arriving at the wall does not start cold.
+  useEffect(() => {
+    if (full) return undefined
+    let alive = true
+    const cancel = scheduleIdleWarm(() => {
+      if (alive) setIdleWarm(true)
+    })
+    return () => {
+      alive = false
+      cancel()
+    }
+  }, [full])
 
   useEffect(() => {
     let alive = true
@@ -577,6 +655,28 @@ export default function PhotoPage({ active = true }) {
   }
 
   const featured = photos[featuredIndex] || photos[0]
+  const frameOn = full || idleWarm
+
+  useEffect(() => {
+    if (full || !idleWarm || !featured) return undefined
+    // The frame bitmap is requested by the painted shell. These are the
+    // large stills the wall does not show yet.
+    const urls = []
+    const hero = framePhotoUrl(featured, frameW)
+    if (hero) urls.push(hero)
+    if (photos.length > 1) {
+      const next = framePhotoUrl(photos[(featuredIndex + 1) % photos.length], frameW)
+      if (next && next !== hero) urls.push(next)
+    }
+    return prefetchImages(urls)
+  }, [full, idleWarm, featured, featuredIndex, photos, frameW])
+
+  useEffect(() => {
+    if (!full || photos.length < 2) return undefined
+    const href = framePhotoUrl(photos[(featuredIndex + 1) % photos.length], frameW)
+    return preloadImage(href)
+  }, [full, photos, featuredIndex, frameW])
+
   const featuredAspect = aspects.current[featuredIndex]
     ?? (Number(featured?.width) > 0 && Number(featured?.height) > 0
       ? Number(featured.width) / Number(featured.height)
@@ -584,11 +684,11 @@ export default function PhotoPage({ active = true }) {
   const mediaItems = photos.map((photo) => ({ type: 'image', image: photo }))
   const caption = `${String(featuredIndex + 1).padStart(2, '0')} / ${String(photos.length).padStart(2, '0')}`
   const curlItems = useMemo(() => stripItems.map((entry) => entry.item), [stripItems])
-  // Same 3D strip on the wall and after arrival. `active` only starts the
-  // rAF loop once the camera is on this page. The thumbnail rail is only
-  // for browsers without CSS 3D.
+  // The bent strip is a few hundred transformed layers. It stays unmounted
+  // on the platform wall (`active` is false until the camera lands). The
+  // thumbnail rail is only for browsers without CSS 3D.
   const stripSelect = stripItems.findIndex((entry) => entry.index === featuredIndex)
-  const useCurl = can3d && stripItems.length > 0
+  const useCurl = can3d && photos.length > 1
 
   return (
     <>
@@ -609,22 +709,31 @@ export default function PhotoPage({ active = true }) {
               <OrnatePhotoFrame
                 aspect={featuredAspect}
                 caption={caption}
+                paint={frameOn}
                 onClick={() => open(featured, featuredIndex)}
                 aria-label={`Open featured photo: ${imageAlt(featured, 'Photograph by Ronnie Foreman')}`}
               >
                 {layers.map((layer) => {
                   const photo = photos[layer.index]
                   if (!photo) return null
-                  const sources = photoSources(photo)
+                  const src = full ? framePhotoUrl(photo, frameW) : filmThumb(photo)
+                  if (!src) return null
                   return (
                     <Slide
                       key={layer.key}
-                      src={sources.src}
-                      srcSet={sources.srcSet}
-                      sizes={sources.sizes}
+                      src={src}
                       alt={layer.show ? imageAlt(photo, 'Photograph by Ronnie Foreman') : ''}
                       aria-hidden={layer.show ? undefined : true}
+                      loading={full && layer.show ? 'eager' : 'lazy'}
+                      decoding="async"
                       $show={layer.show}
+                      ref={(node) => {
+                        if (!node) return
+                        const priority = full && layer.show ? 'high' : 'low'
+                        if (node.getAttribute('fetchpriority') !== priority) {
+                          node.setAttribute('fetchpriority', priority)
+                        }
+                      }}
                       onLoad={(e) => rememberAspect(layer.index, e.currentTarget)}
                     />
                   )
@@ -633,33 +742,39 @@ export default function PhotoPage({ active = true }) {
             </Stage>
 
             {photos.length > 1 && useCurl ? (
-              <CurlBand onPointerDown={bumpPause}>
-                <FilmStrip3D
-                  items={curlItems}
-                  active={active}
-                  mode="3d"
-                  variant="loop"
-                  turnSharpness={1.2}
-                  depth={0.62}
-                  perspective={1300}
-                  speed={0}
-                  height="100%"
-                  selectedIndex={stripSelect >= 0 ? stripSelect : undefined}
-                  ariaLabel="Photo strip"
-                  onSelect={(_item, index) => {
-                    const photoIndex = stripItems[index]?.index
-                    if (typeof photoIndex === 'number') setFeaturedIndex(photoIndex)
-                    bumpPause()
-                  }}
-                />
+              <CurlBand onPointerDown={showStrip ? bumpPause : undefined}>
+                {showStrip ? (
+                  <LiveFilmStrip
+                    items={curlItems}
+                    active={active}
+                    mode="3d"
+                    variant="loop"
+                    turnSharpness={1.2}
+                    depth={0.62}
+                    perspective={1300}
+                    speed={0}
+                    height="100%"
+                    selectedIndex={stripSelect >= 0 ? stripSelect : undefined}
+                    ariaLabel="Photo strip"
+                    onSelect={(_item, index) => {
+                      const photoIndex = stripItems[index]?.index
+                      if (typeof photoIndex === 'number') setFeaturedIndex(photoIndex)
+                      bumpPause()
+                    }}
+                  />
+                ) : full ? null : (
+                  <FrozenStrip photos={photos} />
+                )}
               </CurlBand>
-            ) : photos.length > 1 ? (
+            ) : photos.length > 1 && showStrip ? (
               <FilmStrip
                 photos={photos}
                 index={featuredIndex}
                 onIndexChange={setFeaturedIndex}
                 onInteract={bumpPause}
               />
+            ) : photos.length > 1 && !full ? (
+              <FrozenStrip photos={photos} />
             ) : null}
           </>
         ) : null}

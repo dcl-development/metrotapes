@@ -155,7 +155,7 @@ export default function ImageModal({ isOpen, onClose, currentImage, mediaItems }
 
     if (!currentImage || !mediaItems) return null
 
-    const imageUrl = urlFor(currentImage).width(1200).url()
+    const imageUrl = urlFor(currentImage).auto('format').width(1200).quality(72).url()
 
     return (
         <Overlay $isOpen={isOpen} onClick={handleOverlayClick}>

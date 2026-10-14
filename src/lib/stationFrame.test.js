@@ -6,6 +6,7 @@ import {
   fitFrame,
   nextPhotoIndex,
   photoAutoplayAllowed,
+  photoAutoplayGesture,
   preserveDrawingBuffer,
 } from './stationFrame.js'
 
@@ -41,6 +42,20 @@ describe('css3dBoxChanged', () => {
       '700px',
       '50% 50%',
     ), true)
+  })
+})
+
+describe('photoAutoplayGesture', () => {
+  it('ignores the pointer resting on the page', () => {
+    assert.equal(photoAutoplayGesture('pointerenter'), 'none')
+    assert.equal(photoAutoplayGesture('pointerleave'), 'none')
+    assert.equal(photoAutoplayGesture('pointermove'), 'none')
+  })
+
+  it('pauses on a press and resumes after the release', () => {
+    assert.equal(photoAutoplayGesture('pointerdown'), 'pause')
+    assert.equal(photoAutoplayGesture('pointerup'), 'resume')
+    assert.equal(photoAutoplayGesture('pointercancel'), 'resume')
   })
 })
 

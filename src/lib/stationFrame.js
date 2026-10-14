@@ -21,6 +21,16 @@ export function css3dBoxChanged(style, width, height, perspective, origin) {
     || style.perspectiveOrigin !== origin
 }
 
+/**
+ * Hover does not pause the strip. The gallery fills the viewport, so the
+ * pointer is over it the whole time you are looking. Only a press or drag holds.
+ */
+export function photoAutoplayGesture(type) {
+  if (type === 'pointerdown') return 'pause'
+  if (type === 'pointerup' || type === 'pointercancel') return 'resume'
+  return 'none'
+}
+
 /** Photo strip timer. It only runs while the gallery is the page in front of you. */
 export function photoAutoplayAllowed(pathname, hidden) {
   if (hidden) return false

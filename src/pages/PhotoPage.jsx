@@ -57,7 +57,9 @@ const Slide = styled.img`
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  /* Cover the opening while the frame eases between aspects. At rest the
+     opening matches the photo, so cover shows the whole picture. */
+  object-fit: cover;
   display: block;
   opacity: ${(p) => (p.$show ? 1 : 0)};
   transition: opacity 0.85s ease;
@@ -481,18 +483,6 @@ export default function PhotoPage({ active = true }) {
     return () => window.clearTimeout(clear)
   }, [featuredIndex])
 
-  useEffect(() => {
-    const cached = aspects.current[featuredIndex]
-    if (cached) {
-      setAspect(cached)
-      return
-    }
-    const photo = photos[featuredIndex]
-    const w = Number(photo?.width)
-    const h = Number(photo?.height)
-    if (w > 0 && h > 0) setAspect(w / h)
-  }, [featuredIndex, photos])
-
   // Auto-advance every ~4.5s — strip recenters, frame follows.
   // The page stays mounted on the wall even when that board is hidden.
   // While the camera is still on the way, `active` is false and the frame holds.
@@ -535,11 +525,18 @@ export default function PhotoPage({ active = true }) {
   const rememberAspect = (index, img) => {
     if (!img?.naturalWidth || !img?.naturalHeight) return
     const next = img.naturalWidth / img.naturalHeight
+    const prev = aspects.current[index]
     aspects.current[index] = next
-    if (index === featuredIndex) setAspect(next)
+    if (index !== featuredIndex) return
+    if (prev != null && Math.abs(prev - next) < 0.01) return
+    setAspect(next)
   }
 
   const featured = photos[featuredIndex] || photos[0]
+  const featuredAspect = aspects.current[featuredIndex]
+    ?? (Number(featured?.width) > 0 && Number(featured?.height) > 0
+      ? Number(featured.width) / Number(featured.height)
+      : aspect)
   const mediaItems = photos.map((photo) => ({ type: 'image', image: photo }))
   const caption = `${String(featuredIndex + 1).padStart(2, '0')} / ${String(photos.length).padStart(2, '0')}`
   const stripItems = useMemo(() => {
@@ -567,7 +564,7 @@ export default function PhotoPage({ active = true }) {
           <>
             <Stage>
               <OrnatePhotoFrame
-                aspect={aspect}
+                aspect={featuredAspect}
                 caption={caption}
                 onClick={() => open(featured, featuredIndex)}
                 aria-label={`Open featured photo: ${imageAlt(featured, 'Photograph by Ronnie Foreman')}`}

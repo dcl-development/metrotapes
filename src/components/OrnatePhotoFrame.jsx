@@ -65,7 +65,11 @@ const Shell = styled.button`
   background: transparent;
   cursor: pointer;
   filter: drop-shadow(0 18px 40px rgba(0, 0, 0, 0.6));
-  transition: width 0.7s ease, aspect-ratio 0.7s ease;
+  transition:
+    width 0.7s ease,
+    aspect-ratio 0.7s ease,
+    grid-template-columns 0.7s ease,
+    grid-template-rows 0.7s ease;
   pointer-events: auto;
   z-index: 1;
 

@@ -5,7 +5,10 @@ import {
   css3dBoxChanged,
   fitFrame,
   nextPhotoIndex,
+  panCornerZones,
+  panCornerZoom,
   photoAutoplayAllowed,
+  photoAutoplayGesture,
   preserveDrawingBuffer,
 } from './stationFrame.js'
 
@@ -44,6 +47,20 @@ describe('css3dBoxChanged', () => {
   })
 })
 
+describe('photoAutoplayGesture', () => {
+  it('ignores the pointer resting on the page', () => {
+    assert.equal(photoAutoplayGesture('pointerenter'), 'none')
+    assert.equal(photoAutoplayGesture('pointerleave'), 'none')
+    assert.equal(photoAutoplayGesture('pointermove'), 'none')
+  })
+
+  it('pauses on a press and resumes after the release', () => {
+    assert.equal(photoAutoplayGesture('pointerdown'), 'pause')
+    assert.equal(photoAutoplayGesture('pointerup'), 'resume')
+    assert.equal(photoAutoplayGesture('pointercancel'), 'resume')
+  })
+})
+
 describe('photoAutoplayAllowed', () => {
   it('runs only while the photo gallery is open', () => {
     assert.equal(photoAutoplayAllowed('/photo', false), true)
@@ -54,6 +71,36 @@ describe('photoAutoplayAllowed', () => {
     assert.equal(photoAutoplayAllowed('/about', false), false)
     assert.equal(photoAutoplayAllowed('/video', false), false)
     assert.equal(photoAutoplayAllowed('/photo', true), false)
+  })
+})
+
+describe('panCornerZones', () => {
+  it('keeps both corners on the straight-on kiosk', () => {
+    assert.deepEqual(panCornerZones({ pov: 'kiosk', kioskZoom: 'close' }), ['left', 'right'])
+  })
+
+  it('keeps the return corner on a full pan', () => {
+    assert.deepEqual(panCornerZones({ pov: 'kiosk', kioskZoom: 'left' }), ['right'])
+    assert.deepEqual(panCornerZones({ pov: 'kiosk', kioskZoom: 'right' }), ['left'])
+    assert.deepEqual(panCornerZones({ pov: 'kiosk', kioskZoom: 'wide' }), ['left'])
+  })
+
+  it('stays off the intro and a wall page', () => {
+    assert.deepEqual(panCornerZones({ dimmed: true, pov: 'kiosk' }), [])
+    assert.deepEqual(panCornerZones({ pageView: true, pov: 'photo', kioskZoom: 'close' }), [])
+  })
+
+  it('still offers both corners while a wall shot is in the air', () => {
+    assert.deepEqual(panCornerZones({ pov: 'photo', pageView: false }), ['left', 'right'])
+  })
+})
+
+describe('panCornerZoom', () => {
+  it('matches the pan arrows', () => {
+    assert.equal(panCornerZoom('close', 'left'), 'left')
+    assert.equal(panCornerZoom('close', 'right'), 'right')
+    assert.equal(panCornerZoom('left', 'right'), 'right')
+    assert.equal(panCornerZoom('right', 'left'), 'left')
   })
 })
 

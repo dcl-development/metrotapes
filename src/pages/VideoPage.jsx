@@ -3,6 +3,12 @@ import { useLocation } from 'react-router-dom'
 import styled, { keyframes, css } from 'styled-components'
 import FrostNote from '../components/FrostNote'
 import { isVideoId, loadVideoCatalog, youtubeThumb } from '../lib/videoCatalog'
+import {
+  postYouTubeCommand,
+  shouldArmVideoRequest,
+  videoEmbedMounted,
+  youtubeEmbedSrc,
+} from '../lib/videoPlayer'
 import { font, route } from '../styles/theme'
 
 const GREEN = route.video
@@ -468,6 +474,10 @@ export default function VideoPage() {
   const [statusDetail, setStatusDetail] = useState('')
   const [featuredId, setFeaturedId] = useState(null)
   const [playing, setPlaying] = useState(false)
+  // Clip whose iframe is live. Pause keeps this set so play does not rebuild it.
+  const [sessionId, setSessionId] = useState(null)
+  const frameRef = useRef(null)
+  const armedRequest = useRef('')
   videosRef.current = videos
 
   useEffect(() => {
@@ -481,31 +491,40 @@ export default function VideoPage() {
       if (entry.status === 'ready' && list[0]) {
         const match = list.find((v) => v.videoId === requestedRef.current)
         setFeaturedId(match ? match.videoId : list[0].videoId)
-        if (match) setPlaying(true)
       }
     })
     return () => { alive = false }
   }, [])
 
+  const onVideo = location.pathname === '/video'
+
   // The wall keeps this page mounted, so a kiosk click arrives as a search
-  // change rather than a fresh mount.
+  // change rather than a fresh mount. The same `?v=` must not arm again
+  // while the visitor pauses — that used to rebuild the iframe at 0:00.
   useEffect(() => {
-    if (status !== 'ready' || !requested) return
+    if (!shouldArmVideoRequest({
+      onPage: onVideo,
+      status,
+      requested,
+      armed: armedRequest.current,
+    })) return
     const match = videosRef.current.find((v) => v.videoId === requested)
     if (!match) return
+    armedRequest.current = requested
     setFeaturedId(match.videoId)
+    setSessionId(match.videoId)
     setPlaying(true)
     scroller.current?.scrollTo({ top: 0, behavior: 'smooth' })
-  }, [requested, status])
-
-  const onVideo = location.pathname === '/video'
+  }, [onVideo, requested, status])
 
   // The wall keeps this page mounted after you leave. Drop the embed, the
   // queue selection, and the scroll position so nothing keeps playing behind
-  // the kiosk. `?v=` only lives on /video, so leaving the route clears it.
+  // the kiosk. Pause on this page does not come through here.
   useEffect(() => {
     if (onVideo) return undefined
+    armedRequest.current = ''
     setPlaying(false)
+    setSessionId(null)
     setFeaturedId(null)
     if (scroller.current) scroller.current.scrollTop = 0
     return undefined
@@ -517,9 +536,41 @@ export default function VideoPage() {
   const canPrev = featuredIndex > 0
   const canNext = featuredIndex >= 0 && featuredIndex < videos.length - 1
 
+  const embedOn = videoEmbedMounted({
+    onPage: onVideo,
+    sessionId,
+    videoId: featured?.videoId,
+  })
+  const embedOrigin = typeof window !== 'undefined' ? window.location.origin : ''
+
+  const resumeClip = () => {
+    if (!featured) return
+    if (sessionId === featured.videoId) {
+      setPlaying(true)
+      postYouTubeCommand(frameRef.current, 'playVideo')
+      return
+    }
+    setSessionId(featured.videoId)
+    setPlaying(true)
+  }
+
+  const pauseClip = () => {
+    setPlaying(false)
+    postYouTubeCommand(frameRef.current, 'pauseVideo')
+  }
+
   const openClip = (videoId, autoplay = true) => {
     setFeaturedId(videoId)
-    setPlaying(autoplay)
+    if (!autoplay) {
+      setPlaying(false)
+      if (sessionId === videoId) postYouTubeCommand(frameRef.current, 'pauseVideo')
+    } else if (sessionId === videoId) {
+      setPlaying(true)
+      postYouTubeCommand(frameRef.current, 'playVideo')
+    } else {
+      setSessionId(videoId)
+      setPlaying(true)
+    }
     scroller.current?.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -546,18 +597,25 @@ export default function VideoPage() {
           <Player>
             <ScreenBezel>
               <Frame>
-                {onVideo && playing ? (
+                {embedOn ? (
                   <VideoIframe
+                    ref={frameRef}
                     key={featured.videoId}
-                    src={`https://www.youtube.com/embed/${featured.videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1`}
+                    src={youtubeEmbedSrc(featured.videoId, embedOrigin)}
                     title={featured.title}
+                    onLoad={(event) => {
+                      event.currentTarget.contentWindow?.postMessage(JSON.stringify({
+                        event: 'listening',
+                        id: 'metrotapes-player',
+                      }), '*')
+                    }}
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                     allowFullScreen
                   />
                 ) : (
                   <PlayButton
                     type="button"
-                    onClick={() => setPlaying(true)}
+                    onClick={resumeClip}
                     aria-label={`Play ${featured.title}`}
                   >
                     <ThumbChrome videoId={featured.videoId} duration={featured.duration} size={56} />
@@ -601,7 +659,7 @@ export default function VideoPage() {
                   type="button"
                   $live={playing}
                   aria-label={playing ? `Pause ${featured.title}` : `Play ${featured.title}`}
-                  onClick={() => setPlaying((on) => !on)}
+                  onClick={() => (playing ? pauseClip() : resumeClip())}
                 >
                   {playing ? <IconPause /> : <IconPlay />}
                 </PlayTw>

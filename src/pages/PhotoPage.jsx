@@ -13,10 +13,10 @@ import ImageModal from '../components/ImageModal'
 import OrnatePhotoFrame from '../components/OrnatePhotoFrame'
 import FrostNote from '../components/FrostNote'
 import { font } from '../styles/theme'
-import { nextPhotoIndex, photoAutoplayAllowed } from '../lib/stationFrame'
+import { nextPhotoIndex, photoAutoplayAllowed, photoAutoplayGesture } from '../lib/stationFrame'
 
 const AUTO_MS = 3000
-const RESUME_MS = 4000
+const RESUME_MS = 3000
 const GAP = 7
 const COPIES = 5 // odd — we sit on the middle copy for infinite wrap
 
@@ -498,15 +498,12 @@ export default function PhotoPage({ active = true }) {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedImage, setSelectedImage] = useState(null)
   const [featuredIndex, setFeaturedIndex] = useState(0)
-  const [paused, setPaused] = useState(false)
   const [aspect, setAspect] = useState(4 / 3)
   const [layers, setLayers] = useState([{ key: 0, index: 0, show: true }])
   const layerKey = useRef(0)
   const aspects = useRef({})
-  const resumeTimer = useRef(0)
-  const hoverRef = useRef(false)
+  const advanceTimer = useRef(0)
   const downRef = useRef(0)
-  const panelRef = useRef(null)
   const [tabHidden, setTabHidden] = useState(
     () => typeof document !== 'undefined' && document.hidden,
   )
@@ -573,23 +570,36 @@ export default function PhotoPage({ active = true }) {
     return entries
   }, [photos])
   const stripIndexes = useMemo(() => stripItems.map((entry) => entry.index), [stripItems])
+  const indexesRef = useRef(stripIndexes)
+  indexesRef.current = stripIndexes
+
+  // One chain: the next frame is `delay` ms away, then every 3s.
+  // Restarting it on release is the whole pause. A second cooldown on top
+  // of the interval made the first photo wait ~6s after a press.
+  const kick = useCallback((delay) => {
+    window.clearTimeout(advanceTimer.current)
+    advanceTimer.current = window.setTimeout(function step() {
+      setFeaturedIndex((i) => nextPhotoIndex(i, indexesRef.current))
+      advanceTimer.current = window.setTimeout(step, AUTO_MS)
+    }, delay)
+  }, [])
 
   // Auto-advance every 3s. The strip recenters on that frame, so the yellow
   // outline travels with it. The page stays mounted on the wall; `active` is
   // false until the camera is on this board, and the timer stays off then.
+  // A press or drag holds the timer; the pointer just sitting on the page does not.
   useEffect(() => {
     if (!active) return undefined
     if (!photoAutoplayAllowed(location.pathname, tabHidden)) return undefined
-    if (status !== 'ready' || stripIndexes.length < 2 || paused || isModalOpen) return undefined
+    if (status !== 'ready' || stripIndexes.length < 2 || isModalOpen) return undefined
     const reduced = typeof window !== 'undefined'
       && window.matchMedia('(prefers-reduced-motion: reduce)').matches
     if (reduced) return undefined
+    if (downRef.current > 0) return undefined
 
-    const id = window.setInterval(() => {
-      setFeaturedIndex((i) => nextPhotoIndex(i, stripIndexes))
-    }, AUTO_MS)
-    return () => window.clearInterval(id)
-  }, [active, location.pathname, tabHidden, status, stripIndexes, paused, isModalOpen])
+    kick(AUTO_MS)
+    return () => window.clearTimeout(advanceTimer.current)
+  }, [active, location.pathname, tabHidden, status, stripIndexes, isModalOpen, kick])
 
   // Leaving the gallery puts the first frame back. The board stays in the
   // scene, so without this the last photo would keep sitting on the wall.
@@ -598,37 +608,28 @@ export default function PhotoPage({ active = true }) {
     setFeaturedIndex(0)
     setIsModalOpen(false)
     setSelectedImage(null)
-    setPaused(false)
-    hoverRef.current = false
     downRef.current = 0
-    window.clearTimeout(resumeTimer.current)
+    window.clearTimeout(advanceTimer.current)
     return undefined
   }, [location.pathname])
 
-  const holdInteract = useCallback((event) => {
-    if (event.type === 'pointerenter') hoverRef.current = true
-    if (event.type === 'pointerdown') downRef.current += 1
-    setPaused(true)
-    window.clearTimeout(resumeTimer.current)
-  }, [])
-
-  const releaseInteract = useCallback((event) => {
-    if (event.type === 'pointerleave' || event.type === 'pointercancel') hoverRef.current = false
-    if (event.type === 'pointerup' || event.type === 'pointercancel') {
-      downRef.current = Math.max(0, downRef.current - 1)
+  const onGalleryPointer = useCallback((event) => {
+    const action = photoAutoplayGesture(event.type)
+    if (action === 'pause') {
+      downRef.current += 1
+      window.clearTimeout(advanceTimer.current)
+      return
     }
-    if (hoverRef.current || downRef.current > 0) return
-    window.clearTimeout(resumeTimer.current)
-    resumeTimer.current = window.setTimeout(() => setPaused(false), RESUME_MS)
-  }, [])
+    if (action !== 'resume') return
+    downRef.current = Math.max(0, downRef.current - 1)
+    if (downRef.current > 0) return
+    kick(RESUME_MS)
+  }, [kick])
 
   const bumpPause = useCallback(() => {
-    setPaused(true)
-    window.clearTimeout(resumeTimer.current)
-    resumeTimer.current = window.setTimeout(() => setPaused(false), RESUME_MS)
-  }, [])
-
-  useEffect(() => () => window.clearTimeout(resumeTimer.current), [])
+    if (downRef.current > 0) return
+    kick(RESUME_MS)
+  }, [kick])
 
   const handleModalClose = (newImage) => {
     if (newImage) setSelectedImage(newImage)
@@ -693,12 +694,9 @@ export default function PhotoPage({ active = true }) {
   return (
     <>
       <Panel
-        ref={panelRef}
-        onPointerEnter={holdInteract}
-        onPointerDown={holdInteract}
-        onPointerLeave={releaseInteract}
-        onPointerUp={releaseInteract}
-        onPointerCancel={releaseInteract}
+        onPointerDown={onGalleryPointer}
+        onPointerUp={onGalleryPointer}
+        onPointerCancel={onGalleryPointer}
       >
         {status === 'loading' && <FrostNote>Loading photos…</FrostNote>}
         {status === 'empty' && <FrostNote>No photos yet.</FrostNote>}

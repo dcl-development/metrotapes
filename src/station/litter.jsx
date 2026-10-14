@@ -2,7 +2,8 @@
 import * as THREE from 'three'
 import { TRACK_W, TRACK_X0, TRACK_Y, resolvePov } from './space'
 import { useFrame, useLoader, useThree } from '@react-three/fiber'
-import { useLayoutEffect, useMemo, useRef } from 'react'
+import { floorCardHoverPose, replayIntroLocation, stepHoverAmount } from './floorCard'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useGfx } from '../lib/useGfx'
 
 /** Cheap NYC platform litter — scribbled notes, receipts, crumpled bags. */
@@ -238,7 +239,126 @@ function punchCardAlpha(texture) {
   return tex
 }
 
-function MetroCardBody({ texture, lit = false, meshRef }) {
+const WARM_GLOW = new THREE.Color('#fff6ea')
+const HALO_OPACITY = 0.4
+
+function noopRaycast() {}
+
+function makeCardHaloMap() {
+  const canvas = document.createElement('canvas')
+  canvas.width = 128
+  canvas.height = 128
+  const ctx = canvas.getContext('2d')
+  const rad = ctx.createRadialGradient(64, 64, 6, 64, 64, 64)
+  rad.addColorStop(0, 'rgba(255, 250, 242, 0.95)')
+  rad.addColorStop(0.28, 'rgba(255, 244, 220, 0.55)')
+  rad.addColorStop(0.62, 'rgba(255, 236, 206, 0.16)')
+  rad.addColorStop(1, 'rgba(255, 244, 220, 0)')
+  ctx.fillStyle = rad
+  ctx.fillRect(0, 0, 128, 128)
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.colorSpace = THREE.SRGBColorSpace
+  return tex
+}
+
+function useFinePointer() {
+  const [fine, setFine] = useState(() => (
+    typeof window !== 'undefined'
+    && window.matchMedia('(hover: hover) and (pointer: fine)').matches
+  ))
+  useEffect(() => {
+    const media = window.matchMedia('(hover: hover) and (pointer: fine)')
+    const apply = () => setFine(media.matches)
+    media.addEventListener('change', apply)
+    return () => media.removeEventListener('change', apply)
+  }, [])
+  return fine
+}
+
+function replayIntro(event) {
+  event.stopPropagation()
+  const action = replayIntroLocation(window.location.pathname)
+  if (action === 'reload') window.location.reload()
+  else window.location.assign('/')
+}
+
+/** Soft halo plus the eased lift. The mesh stays the hit target. */
+function useRestingCardHover(reducedMotion) {
+  const hover = useRef(0)
+  const want = useRef(0)
+  const fine = useFinePointer()
+  const halo = useRef(null)
+  const face = useRef(null)
+  const baseEmissive = useRef(null)
+  const invalidate = useThree((s) => s.invalidate)
+  const fineRef = useRef(fine)
+  fineRef.current = fine
+
+  const apply = (group, baseY, time, dt) => {
+    const goal = fineRef.current && want.current ? 1 : 0
+    hover.current = stepHoverAmount(hover.current, goal, dt)
+    const pose = floorCardHoverPose({
+      hover: hover.current,
+      time,
+      reduced: reducedMotion,
+    })
+    group.position.y = baseY + pose.lift
+    if (halo.current) halo.current.opacity = pose.glow * HALO_OPACITY
+    const mat = face.current
+    if (mat) {
+      if (!baseEmissive.current) {
+        baseEmissive.current = {
+          color: mat.emissive.clone(),
+          intensity: mat.emissiveIntensity,
+        }
+      }
+      const base = baseEmissive.current
+      mat.emissive.copy(base.color).lerp(WARM_GLOW, pose.glow)
+      mat.emissiveIntensity = base.intensity + pose.glow * 0.32
+    }
+    if (want.current || hover.current > 0) invalidate()
+  }
+
+  const handlers = {
+    onClick: replayIntro,
+    onPointerOver: (event) => {
+      event.stopPropagation()
+      if (!fineRef.current) return
+      want.current = 1
+      document.body.style.cursor = 'pointer'
+      invalidate()
+    },
+    onPointerOut: (event) => {
+      event.stopPropagation()
+      want.current = 0
+      if (document.body.style.cursor === 'pointer') document.body.style.cursor = 'auto'
+      invalidate()
+    },
+  }
+
+  return { apply, handlers, halo, face }
+}
+
+function CardHalo({ materialRef }) {
+  const map = useMemo(() => makeCardHaloMap(), [])
+  useLayoutEffect(() => () => map.dispose(), [map])
+  return (
+    <sprite position={[0, 0, 0.028]} scale={[0.78, 0.52, 1]} raycast={noopRaycast}>
+      <spriteMaterial
+        ref={materialRef}
+        map={map}
+        color="#fff6ea"
+        transparent
+        depthWrite={false}
+        blending={THREE.AdditiveBlending}
+        opacity={0}
+        toneMapped={false}
+      />
+    </sprite>
+  )
+}
+
+function MetroCardBody({ texture, lit = false, meshRef, materialRef, interactive = false, handlers }) {
   const geometry = useMemo(() => createNotchedCardGeometry(), [])
   const map = useMemo(() => punchCardAlpha(texture), [texture])
   const materials = useMemo(() => ([
@@ -260,12 +380,26 @@ function MetroCardBody({ texture, lit = false, meshRef }) {
       metalness: 0.12,
     }),
   ]), [map, lit])
-  useLayoutEffect(() => () => {
-    geometry.dispose()
-    if (map !== texture) map.dispose()
-    materials.forEach((m) => m.dispose())
-  }, [geometry, map, materials, texture])
-  return <mesh ref={meshRef} geometry={geometry} material={materials} />
+  useLayoutEffect(() => {
+    if (materialRef) materialRef.current = materials[0]
+    return () => {
+      geometry.dispose()
+      if (map !== texture) map.dispose()
+      materials.forEach((m) => m.dispose())
+    }
+  }, [geometry, map, materials, texture, materialRef])
+  return (
+    <mesh
+      name="floor-metrocard"
+      ref={meshRef}
+      geometry={geometry}
+      material={materials}
+      raycast={interactive ? THREE.Mesh.prototype.raycast : noopRaycast}
+      onClick={interactive ? handlers.onClick : undefined}
+      onPointerOver={interactive ? handlers.onPointerOver : undefined}
+      onPointerOut={interactive ? handlers.onPointerOut : undefined}
+    />
+  )
 }
 
 /**
@@ -279,6 +413,7 @@ export function WindCard({ ready, onCameraHome, reducedMotion, driveCamera = tru
   const meshRef = useRef(null)
   const basePos = useRef(null)
   const { camera } = useThree()
+  const hover = useRestingCardHover(reducedMotion)
   const { tier } = useGfx()
   const texture = useLoader(THREE.TextureLoader, '/metrocard.png')
   texture.colorSpace = THREE.SRGBColorSpace
@@ -352,11 +487,16 @@ export function WindCard({ ready, onCameraHome, reducedMotion, driveCamera = tru
     camera.updateProjectionMatrix()
   }, [camera, CAM_START, driveCamera])
 
-  useFrame((_, dt) => {
+  useFrame((stateClock, dt) => {
     if (!group.current) return
     const d = Math.min(dt, 0.05)
     const s = state.current
     const g = group.current
+    const time = stateClock.clock.elapsedTime
+    const settleHover = () => {
+      if (driveCamera || !s.cardLanded) return
+      hover.apply(g, LAND.y, time, d)
+    }
     const setCam = (pos, look, fov) => {
       if (!driveCamera) return
       camera.position.copy(pos)
@@ -380,6 +520,7 @@ export function WindCard({ ready, onCameraHome, reducedMotion, driveCamera = tru
           g.scale.setScalar(LAND_SCALE)
           s.cardLanded = true
         }
+        settleHover()
         return
       }
       g.position.copy(LAND)
@@ -389,6 +530,7 @@ export function WindCard({ ready, onCameraHome, reducedMotion, driveCamera = tru
       s.camHome = true
       s.cardLanded = true
       finishIntro(s)
+      settleHover()
       return
     }
 
@@ -413,6 +555,7 @@ export function WindCard({ ready, onCameraHome, reducedMotion, driveCamera = tru
         s.camHome = true
       }
       finishIntro(s)
+      settleHover()
       return
     }
 
@@ -457,7 +600,40 @@ export function WindCard({ ready, onCameraHome, reducedMotion, driveCamera = tru
 
   return (
     <group ref={group} position={HERO.toArray()} scale={HERO_SCALE} rotation={[0, FACE_YAW, 0]}>
-      <MetroCardBody texture={texture} lit meshRef={meshRef} />
+      <MetroCardBody
+        texture={texture}
+        lit
+        meshRef={meshRef}
+        materialRef={hover.face}
+        interactive={!driveCamera}
+        handlers={hover.handlers}
+      />
+      <CardHalo materialRef={hover.halo} />
+    </group>
+  )
+}
+
+function DiscardedMetroCard({ texture }) {
+  const group = useRef()
+  const reducedMotion = useMemo(
+    () => typeof window !== 'undefined'
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+    [],
+  )
+  const hover = useRestingCardHover(reducedMotion)
+  useFrame((state, dt) => {
+    if (!group.current) return
+    hover.apply(group.current, TRASH_CARD.pos[1], state.clock.elapsedTime, dt)
+  })
+  return (
+    <group ref={group} position={TRASH_CARD.pos} rotation={TRASH_CARD.rot}>
+      <MetroCardBody
+        texture={texture}
+        materialRef={hover.face}
+        interactive
+        handlers={hover.handlers}
+      />
+      <CardHalo materialRef={hover.halo} />
     </group>
   )
 }
@@ -510,11 +686,7 @@ export function FloorTrash({ showMetroCard = true }) {
 
   return (
     <group>
-      {showMetroCard ? (
-        <group position={TRASH_CARD.pos} rotation={TRASH_CARD.rot}>
-          <MetroCardBody texture={metroTex} />
-        </group>
-      ) : null}
+      {showMetroCard ? <DiscardedMetroCard texture={metroTex} /> : null}
       {bits.map((b, i) => {
         if (b.kind === 'bag') {
           return (

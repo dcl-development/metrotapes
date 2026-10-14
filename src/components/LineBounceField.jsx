@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
+import { stepLineBullet } from '../lib/lineBounce'
 import { SUBWAY_LINES } from '../lib/subwayLines'
 
 const Field = styled.div`
@@ -76,35 +77,41 @@ export default function LineBounceField({ size = 16, speed = 1.15 }) {
     if (!field) return undefined
 
     let frame = 0
+    let alive = true
+    const bounds = { width: 0, height: 0, size }
+
     const tick = () => {
-      const maxX = Math.max(0, field.clientWidth - size)
-      const maxY = Math.max(0, field.clientHeight - size)
+      if (!alive) return
+      bounds.width = field.clientWidth
+      bounds.height = field.clientHeight
+      // display:none (intro, off-screen kiosk) measures 0×0. Stepping then
+      // damps every bullet to the corner. Wait for a real box.
+      if (bounds.width <= size || bounds.height <= size) return
+
       const motion = motionRef.current
-
       for (let i = 0; i < motion.length; i += 1) {
-        let { x, y, vx, vy } = motion[i]
-        x += vx * speed
-        y += vy * speed
-
-        if (x <= 0 || x >= maxX) {
-          vx = -vx * 0.92
-          x = x <= 0 ? 0 : maxX
-        }
-        if (y <= 0 || y >= maxY) {
-          vy = -vy * 0.92
-          y = y <= 0 ? 0 : maxY
-        }
-
-        motion[i] = { x, y, vx, vy }
+        const next = stepLineBullet(motion[i], bounds, speed)
+        motion[i] = next
         const node = nodeRefs.current[i]
-        if (node) node.style.transform = `translate(${x}px, ${y}px)`
+        if (node) node.style.transform = `translate(${next.x}px, ${next.y}px)`
       }
 
       frame = requestAnimationFrame(tick)
     }
 
-    frame = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(frame)
+    const onResize = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(tick)
+    }
+
+    const observer = new ResizeObserver(onResize)
+    observer.observe(field)
+    onResize()
+    return () => {
+      alive = false
+      cancelAnimationFrame(frame)
+      observer.disconnect()
+    }
   }, [reducedMotion, size, speed])
 
   return (

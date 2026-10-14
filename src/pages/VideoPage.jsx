@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import styled, { keyframes, css } from 'styled-components'
 import FrostNote from '../components/FrostNote'
-import { loadVideoCatalog, youtubeThumb } from '../lib/videoCatalog'
+import { isVideoId, loadVideoCatalog, youtubeThumb } from '../lib/videoCatalog'
 import { font, route } from '../styles/theme'
 
 const GREEN = route.video
@@ -450,27 +451,52 @@ function ThumbChrome({ videoId, duration, lazy = false, size = 40, showPlay = tr
   )
 }
 
+function clipFromSearch(search) {
+  const id = new URLSearchParams(search).get('v') || ''
+  return isVideoId(id) ? id : ''
+}
+
 export default function VideoPage() {
+  const location = useLocation()
+  const requested = clipFromSearch(location.search)
+  const requestedRef = useRef(requested)
+  requestedRef.current = requested
+  const videosRef = useRef([])
   const scroller = useRef(null)
   const [videos, setVideos] = useState([])
   const [status, setStatus] = useState('loading')
   const [statusDetail, setStatusDetail] = useState('')
   const [featuredId, setFeaturedId] = useState(null)
   const [playing, setPlaying] = useState(false)
+  videosRef.current = videos
 
   useEffect(() => {
     let alive = true
     loadVideoCatalog().then((entry) => {
       if (!alive) return
-      setVideos(entry.data || [])
+      const list = entry.data || []
+      setVideos(list)
       setStatus(entry.status === 'idle' ? 'loading' : entry.status)
       setStatusDetail(entry.detail || '')
-      if (entry.status === 'ready' && entry.data?.[0]) {
-        setFeaturedId(entry.data[0].videoId)
+      if (entry.status === 'ready' && list[0]) {
+        const match = list.find((v) => v.videoId === requestedRef.current)
+        setFeaturedId(match ? match.videoId : list[0].videoId)
+        if (match) setPlaying(true)
       }
     })
     return () => { alive = false }
   }, [])
+
+  // The wall keeps this page mounted, so a kiosk click arrives as a search
+  // change rather than a fresh mount.
+  useEffect(() => {
+    if (status !== 'ready' || !requested) return
+    const match = videosRef.current.find((v) => v.videoId === requested)
+    if (!match) return
+    setFeaturedId(match.videoId)
+    setPlaying(true)
+    scroller.current?.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [requested, status])
 
   const featured = videos.find((v) => v.videoId === featuredId) || videos[0]
   const featuredIndex = Math.max(0, videos.findIndex((v) => v.videoId === featured?.videoId))

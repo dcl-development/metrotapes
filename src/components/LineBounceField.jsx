@@ -22,7 +22,8 @@ const Circle = styled.div`
   justify-content: center;
   font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
   font-weight: 800;
-  font-size: ${(p) => p.$size * 0.52}px;
+  font-size: ${(p) => p.$size * (p.$compact ? 0.28 : 0.52)}px;
+  letter-spacing: ${(p) => (p.$compact ? '-0.04em' : '0')};
   line-height: 1;
   color: ${(p) => p.$textColor || 'white'};
   background-color: ${(p) => p.$color};
@@ -116,6 +117,7 @@ export default function LineBounceField({ size = 16, speed = 1.15 }) {
           $size={size}
           $color={bubble.color}
           $textColor={bubble.textColor}
+          $compact={bubble.line.length > 1}
           style={{ transform: `translate(${bubble.x}px, ${bubble.y}px)` }}
         >
           {bubble.line}

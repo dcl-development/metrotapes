@@ -57,7 +57,8 @@ const Bullet = styled.div`
   justify-content: center;
   font-family: ${font};
   font-weight: 800;
-  font-size: 0.65rem;
+  font-size: ${(p) => (p.$compact ? '0.38rem' : '0.65rem')};
+  letter-spacing: ${(p) => (p.$compact ? '-0.05em' : '0')};
   line-height: 1;
   color: ${(p) => p.$fg};
   background: ${(p) => p.$bg};
@@ -84,10 +85,8 @@ const SrOnly = styled.span`
   border: 0;
 `
 
-/** Tight set — strip map, not a confetti pile. */
-const BOOT_LINES = SUBWAY_LINES.filter((l) => (
-  ['A', 'C', 'E', '1', '2', '3', 'N', 'Q', 'R', 'L', 'G', '7'].includes(l.line)
-))
+/** Full current set. Two rows, split in half by the existing ceil. */
+const BOOT_LINES = SUBWAY_LINES
 
 const BULLET = 22
 const GAP = 5
@@ -224,14 +223,14 @@ export default function BootScreen({ leaving = false }) {
         <Rows aria-hidden="true">
           <Row>
             {topLines.map((line) => (
-              <Bullet key={line.line} $bg={line.color} $fg={line.textColor}>
+              <Bullet key={line.line} $bg={line.color} $fg={line.textColor} $compact={line.line.length > 1}>
                 {line.line}
               </Bullet>
             ))}
           </Row>
           <Row>
             {bottomLines.map((line) => (
-              <Bullet key={line.line} $bg={line.color} $fg={line.textColor}>
+              <Bullet key={line.line} $bg={line.color} $fg={line.textColor} $compact={line.line.length > 1}>
                 {line.line}
               </Bullet>
             ))}

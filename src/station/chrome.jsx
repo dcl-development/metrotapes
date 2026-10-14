@@ -444,14 +444,16 @@ export const ChromeBar = styled.div`
   `}
 `
 
-/** Far left / right of the stage — look aside even when HTML screens eat canvas hits. */
+/** Bottom corners of the home station. Same look-aside as the side strips.
+    Lives inside the stage, under the kiosk overlay (z-index 3). The chrome
+    bar stays above both, so the screen and the zoom button keep their clicks. */
 export const EdgeHit = styled.button`
   position: absolute;
-  top: 0;
   bottom: 0;
   ${(p) => (p.$side === 'left' ? 'left: 0;' : 'right: 0;')}
-  width: min(18vw, 7.5rem);
-  z-index: 4;
+  width: clamp(4.75rem, 30%, 18rem);
+  height: clamp(8rem, 38%, 20rem);
+  z-index: 1;
   margin: 0;
   padding: 0;
   border: 0;

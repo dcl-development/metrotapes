@@ -207,14 +207,6 @@ const ClipMeta = styled.div`
   text-overflow: ellipsis;
 `
 
-const ClipFrame = styled.iframe`
-  display: block;
-  width: 100%;
-  aspect-ratio: 16 / 10;
-  border: 0;
-  background: #000;
-`
-
 const More = styled(Link)`
   display: block;
   margin: 0 14px 4px;
@@ -462,11 +454,6 @@ export default function KioskScreen({ live = false }) {
   const time = useClock()
   const weather = useNycWeather()
   const clips = useRecentVideos()
-  const [playingId, setPlayingId] = useState(null)
-
-  useEffect(() => {
-    if (!live) setPlayingId(null)
-  }, [live])
 
   const goTo = (to) => {
     if (!live) return
@@ -503,29 +490,18 @@ export default function KioskScreen({ live = false }) {
           if (!video) {
             return <ThumbGhost key={`ghost-${i}`} aria-hidden />
           }
-          const playing = playingId === video.videoId
           return (
             <Clip
               key={video.id || video.videoId}
               type="button"
-              onClick={() => setPlayingId(playing ? null : video.videoId)}
-              aria-label={playing ? `Pause ${video.title}` : `Play ${video.title}`}
+              onClick={() => goTo(`/video?v=${encodeURIComponent(video.videoId)}`)}
+              aria-label={`Play ${video.title}`}
             >
-              {playing ? (
-                <ClipFrame
-                  src={`https://www.youtube.com/embed/${video.videoId}?autoplay=1&mute=1&rel=0&modestbranding=1&playsinline=1`}
-                  title={video.title}
-                  allow="autoplay; encrypted-media; picture-in-picture"
-                />
-              ) : (
-                <>
-                  <Thumb
-                    src={`https://i.ytimg.com/vi/${video.videoId}/hqdefault.jpg`}
-                    alt=""
-                  />
-                  <ClipMeta>{video.title}</ClipMeta>
-                </>
-              )}
+              <Thumb
+                src={`https://i.ytimg.com/vi/${video.videoId}/hqdefault.jpg`}
+                alt=""
+              />
+              <ClipMeta>{video.title}</ClipMeta>
             </Clip>
           )
         })}

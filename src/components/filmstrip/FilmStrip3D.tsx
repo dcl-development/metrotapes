@@ -339,9 +339,16 @@ function loopSegs(c: LoopCfg) {
   // Wider compact windows (just under 768px, landscape, short laptop windows)
   // are height-limited, so that short tail stops on screen. Grow the right
   // run with the extra width; the fitted hairpin does not include this bleed.
-  const bleedL = 1100 - 750 * k;
-  const extraW = k > 0 ? Math.max(0, c.viewW - 420) : 0;
-  const bleedR = 2400 - 1950 * k + extraW * 3.4;
+  // Desktop is height-limited too once the band is short: the hairpin is
+  // centred and scaled to the band, so a fixed run stops short of a wide
+  // viewport. ~1.9 world-px per extra screen-px keeps the left edge covered
+  // at the height-fit scale (~0.3). The right run is already longer.
+  const wide = Math.max(0, c.viewW);
+  const extraCompact = k > 0 ? Math.max(0, wide - 420) : 0;
+  const extraL = k > 0 ? 0 : Math.max(0, wide - 1100);
+  const extraR = k > 0 ? 0 : Math.max(0, wide - 1500);
+  const bleedL = 1100 - 750 * k + extraL * 1.9;
+  const bleedR = 2400 - 1950 * k + extraCompact * 3.4 + extraR * 2.2;
   const segs: LoopSeg[] = [
     { len: 80 - 40 * k + bleedL, d: 0, kind: 'bump' }, // run-in, continues off the left edge
     { len: 720 - 500 * k, d: thA - th0, kind: 'bump' }, // arch towards the hairpin
@@ -938,7 +945,9 @@ export default function FilmStrip3D({
       // from above. Do not derive this from `target` — wider slices would
       // inflate the radius and flatten the loop.
       minR: tier === 'compact' ? 110 : DESK_MIN_R,
-      viewW: tier === 'compact' ? viewW : 0,
+      // Width feeds the straight runs on every tier. Desktop used to pass 0,
+      // so a wide window kept the short fixed left run.
+      viewW,
     }),
     [turnSharpness, depthProp, tier, viewW],
   );
@@ -994,6 +1003,9 @@ export default function FilmStrip3D({
   } | null>(null);
 
   const asLinks = useMemo(() => items.length > 0 && items.every((i) => !!i.href), [items]);
+  // The engine reads this during pose. The layout effect below snaps the strip
+  // when it changes; the outline and bulge read the same value every frame.
+  const selectedRef = useRef(selectedIndex);
 
   /* ---------------- engine ---------------- */
   useIsoLayoutEffect(() => {
@@ -1043,6 +1055,7 @@ export default function FilmStrip3D({
     const lastSh = new Float64Array(NS).fill(-1);
     const lastGl = new Float64Array(NS).fill(-1);
     const lastFocus = new Int8Array(NS).fill(0);
+    const lastMark = new Int8Array(NS).fill(0);
     // per-frame (hit button) caches
     const lastK = new Array<number>(N).fill(NaN);
     const lastFOp = new Array<boolean | null>(N).fill(null);
@@ -1249,6 +1262,31 @@ export default function FilmStrip3D({
       hy = ly / hl,
       hz = (lz + 1) / hl;
 
+    // Bulge: slices within ~2 frames of the featured photo step toward the camera.
+    // World units, before the fit scale S. ~0.085 of the loop camera (D) reads as
+    // a small scale-up, not a pop. Compact / reduced motion leave this at 0.
+    const BULGE_WORLD = 110;
+    const BULGE_MS = 480;
+    let bulgeK = NaN;
+    let bulgeW = 1;
+    let bulgeIdx = -1;
+    let fadeK = NaN;
+    let fadeW = 0;
+    let bulgeT0 = 0;
+
+    /** Virtual frame of `index` nearest the hero, same choice as showIndex. */
+    const nearestK = (index: number) => {
+      const len = lay.L;
+      if (!len || !Number.isFinite(index)) return NaN;
+      const i = mod(Math.round(index), len);
+      let kc = kmin;
+      while (cumAt(lay, kc + 1) + off <= heroS) kc++;
+      let k = kc - mod(kc, len) + i;
+      if (k - kc > len / 2) k -= len;
+      else if (kc - k > len / 2) k += len;
+      return k;
+    };
+
     const render = () => {
       // camera rotation: tilt (look from above) then yaw sway.
       // Lite drops the micro-sway — it forced every slice matrix to change every frame.
@@ -1365,6 +1403,69 @@ export default function FilmStrip3D({
       }
 
       /* ---------- 4. pose every slice ---------- */
+      // First frame overlapping the path. nearestK walks forward from here to the hero.
+      while (cumAt(lay, kmin + 1) + off <= 0) kmin++;
+      while (cumAt(lay, kmin) + off > 0) kmin--;
+      const selRaw = selectedRef.current;
+      const selN = selRaw == null || !Number.isFinite(selRaw) ? -1 : selRaw;
+      const curK = selN < 0 ? NaN : nearestK(selN);
+      // Bulge stays off on phones and reduced motion (the outline does not).
+      const bulgeOn = !lite && !reduced;
+      const kSame = curK === bulgeK || (Number.isNaN(curK) && Number.isNaN(bulgeK));
+      if (!kSame || selN !== bulgeIdx) {
+        const ease = bulgeOn && Number.isFinite(bulgeK) && selN !== bulgeIdx && Number.isFinite(curK);
+        if (ease) {
+          fadeK = bulgeK;
+          fadeW = bulgeW;
+          bulgeT0 = performance.now();
+          bulgeW = 0;
+        } else {
+          fadeK = NaN;
+          fadeW = 0;
+          bulgeT0 = 0;
+          bulgeW = 1;
+        }
+        bulgeK = curK;
+        bulgeIdx = selN;
+      }
+      let wHere = bulgeOn ? bulgeW : 0;
+      let wThere = 0;
+      if (bulgeOn && bulgeT0) {
+        const u = clamp((performance.now() - bulgeT0) / BULGE_MS, 0, 1);
+        const e = u * u * (3 - 2 * u);
+        bulgeW = e;
+        wHere = e;
+        wThere = fadeW * (1 - e);
+        if (u >= 1) {
+          bulgeT0 = 0;
+          fadeK = NaN;
+          fadeW = 0;
+          wThere = 0;
+        }
+      }
+      const cHere = Number.isFinite(bulgeK) ? cumAt(lay, bulgeK) + off + pitchAt(lay, bulgeK) * 0.5 : NaN;
+      const cThere = Number.isFinite(fadeK) ? cumAt(lay, fadeK) + off + pitchAt(lay, fadeK) * 0.5 : NaN;
+      const meanP = meanPitch() || 1;
+      // Path position -> world-px push toward the viewer. 0 outside the falloff.
+      const pushAt = (pos: number) => {
+        if (!bulgeOn) return 0;
+        let a = 0;
+        if (wHere > 0.001 && Number.isFinite(cHere)) {
+          const d = Math.abs(pos - cHere) / meanP;
+          if (d < 2) {
+            const t = 1 - d * 0.5;
+            a += wHere * t * t * (3 - 2 * t);
+          }
+        }
+        if (wThere > 0.001 && Number.isFinite(cThere)) {
+          const d = Math.abs(pos - cThere) / meanP;
+          if (d < 2) {
+            const t = 1 - d * 0.5;
+            a += wThere * t * t * (3 - 2 * t);
+          }
+        }
+        return a * BULGE_WORLD;
+      };
       for (let i = 0; i < NS; i++) {
         const j = jmin + i;
         const slot = mod(j, NS);
@@ -1401,6 +1502,12 @@ export default function FilmStrip3D({
         const sx = (S * bC[i] * sgn) / w;
         const sz = S * sgn;
         const q = flip ? o + 3 : o;
+        // Along the camera-facing normal (sgn flips it on the return leg) so the
+        // hit target, posed the same way below, stays on the photo.
+        const push = pushAt(sliceStartAt(lay, j) + off + w * 0.5);
+        const bx = bZ[o] * sgn * push;
+        const by = bZ[o + 1] * sgn * push;
+        const bz = bZ[o + 2] * sgn * push;
         // Lite: coarser rounding so subpixel drift does not rewrite transform every frame.
         const d = lite ? 3 : 4;
         const dp = lite ? 1 : 2;
@@ -1408,7 +1515,7 @@ export default function FilmStrip3D({
           (bX[o] * sx).toFixed(d) + ',' + (bX[o + 1] * sx).toFixed(d) + ',' + (bX[o + 2] * sx).toFixed(d) + ',0,' +
           (bY[o] * S).toFixed(d) + ',' + (bY[o + 1] * S).toFixed(d) + ',' + (bY[o + 2] * S).toFixed(d) + ',0,' +
           (bZ[o] * sz).toFixed(d) + ',' + (bZ[o + 1] * sz).toFixed(d) + ',' + (bZ[o + 2] * sz).toFixed(d) + ',0,' +
-          (jp[q] * S).toFixed(dp) + ',' + (jp[q + 1] * S).toFixed(dp) + ',' + (jp[q + 2] * S).toFixed(dp) + ',1';
+          ((jp[q] + bx) * S).toFixed(dp) + ',' + ((jp[q + 1] + by) * S).toFixed(dp) + ',' + ((jp[q + 2] + bz) * S).toFixed(dp) + ',1';
         if (mx !== lastMx[slot]) {
           lastMx[slot] = mx;
           el.style.transform = 'matrix3d(' + mx + ')';
@@ -1437,11 +1544,17 @@ export default function FilmStrip3D({
           if (foc) el.setAttribute('data-focus', '');
           else el.removeAttribute('data-focus');
         }
+        // Yellow inset on the featured photo. Every slice of that one virtual
+        // frame, so the ring travels with the strip. Kept on every tier.
+        const mark = sliceK[slot] === curK ? 1 : 0;
+        if (mark !== lastMark[slot]) {
+          lastMark[slot] = mark;
+          if (mark) el.setAttribute('data-current', '');
+          else el.removeAttribute('data-current');
+        }
       }
 
       /* ---------- 5. frames: invisible, accessible buttons posed over each photo ---------- */
-      while (cumAt(lay, kmin + 1) + off <= 0) kmin++;
-      while (cumAt(lay, kmin) + off > 0) kmin--;
       let bestFront = 1e9;
       for (let i = 0; i < N; i++) {
         const k = kmin + mod(i - kmin, N);
@@ -1460,7 +1573,10 @@ export default function FilmStrip3D({
           el.style.visibility = vis ? 'visible' : 'hidden';
         }
         if (!vis) {
-          hitOn[i] = 1;
+          if (hitOn[i] !== 0) {
+            hitOn[i] = 0;
+            if (loop) el.style.pointerEvents = 'none';
+          }
           continue;
         }
         sample(x0 + pad, pA, dA);
@@ -1501,15 +1617,18 @@ export default function FilmStrip3D({
         const T0 = R[0] * c0 + R[1] * c1 + R[2] * c2;
         const T1 = R[3] * c0 + R[4] * c1 + R[5] * c2;
         const T2 = R[6] * c0 + R[7] * c1 + R[8] * c2;
-        const fx = (S * chord) / fw;
-        if (loop) {
-          // only frames that face the viewer take clicks; the back stays focusable
-          // for the keyboard (focus brings it round to the hero spot) but ignores the pointer
-          const on = Z2 > 0.2 ? 1 : 0;
-          if (on !== hitOn[i]) {
-            hitOn[i] = on;
-            el.style.pointerEvents = on ? '' : 'none';
-          }
+        // The return leg is turned 180° so the photo faces the camera, which
+        // makes this hit's normal point away. Flip the hit the same way and
+        // keep it live — dropping pointer-events on Z2 <= 0.2 made that leg
+        // unclickable. Hidden frames still opt out above.
+        const facing = loop && Z2 < 0 ? -1 : 1;
+        const fx = ((S * chord) / fw) * facing;
+        const zs = S * facing;
+        // Same push as the slices under this frame, so the button stays on the photo.
+        const hp = pushAt(cs);
+        if (loop && hitOn[i] !== 1) {
+          hitOn[i] = 1;
+          el.style.pointerEvents = 'auto';
         }
         {
           const d = lite ? 3 : 4;
@@ -1517,9 +1636,9 @@ export default function FilmStrip3D({
           const mx =
             (X0 * fx).toFixed(d) + ',' + (X1 * fx).toFixed(d) + ',' + (X2 * fx).toFixed(d) + ',0,' +
             (Y0 * S).toFixed(d) + ',' + (Y1 * S).toFixed(d) + ',' + (Y2 * S).toFixed(d) + ',0,' +
-            (Z0 * S).toFixed(d) + ',' + (Z1 * S).toFixed(d) + ',' + (Z2 * S).toFixed(d) + ',0,' +
+            (Z0 * zs).toFixed(d) + ',' + (Z1 * zs).toFixed(d) + ',' + (Z2 * zs).toFixed(d) + ',0,' +
             // Photo centre sits on the strip midline (PHOTO_TOP + PHOTO_H/2 === HALF_H)
-            ((T0 + shX) * S).toFixed(dp) + ',' + ((T1 + shY) * S).toFixed(dp) + ',' + (T2 * S).toFixed(dp) + ',1';
+            ((T0 + shX + Z0 * facing * hp) * S).toFixed(dp) + ',' + ((T1 + shY + Z1 * facing * hp) * S).toFixed(dp) + ',' + ((T2 + Z2 * facing * hp) * S).toFixed(dp) + ',1';
           if (mx !== lastHitMx[i]) {
             lastHitMx[i] = mx;
             el.style.transform = 'matrix3d(' + mx + ')';
@@ -1955,7 +2074,6 @@ export default function FilmStrip3D({
     api.current?.syncActive();
   }, [active]);
 
-  const selectedRef = useRef(selectedIndex);
   useIsoLayoutEffect(() => {
     if (selectedIndex == null || selectedIndex === selectedRef.current) {
       selectedRef.current = selectedIndex;

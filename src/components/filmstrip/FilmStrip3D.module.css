@@ -200,6 +200,22 @@
     inset 0 0 0 1px rgba(255, 255, 255, 0.1);
 }
 
+/* Featured photo (the one in the big frame). Inset so it stays inside the
+   film window and travels with these slices. MTA yellow, same as the boot
+   screen and the R train. */
+.slice[data-current] .ph {
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.6),
+    inset 0 0 0 2px #fccc0a;
+}
+
+.slice[data-focus][data-current] .ph {
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.6),
+    0 0 0 3px var(--ink),
+    inset 0 0 0 2px #fccc0a;
+}
+
 /* ---- accessible, clickable frame (invisible button / link over the photo) -- */
 
 .hit {
@@ -223,7 +239,7 @@
   visibility: hidden;
 }
 
-/* the loop's frames that face away from the viewer (or sit far behind) never take the pointer; set from JS */
+/* hidden frames (off the path) set pointer-events from JS; a flipped return leg stays clickable */
 
 @media (prefers-reduced-motion: reduce) {
   .root {

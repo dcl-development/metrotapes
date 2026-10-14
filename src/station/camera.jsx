@@ -1,12 +1,8 @@
 import * as THREE from 'three'
+import { KIOSK_PAN_SEC, smootherstep, stepFlight } from './cameraMotion'
 import { CAM, isWallPov, resolvePov } from './space'
 import { useFrame, useThree } from '@react-three/fiber'
 import { useLayoutEffect, useMemo, useRef } from 'react'
-
-function smootherstep(t) {
-  const x = THREE.MathUtils.clamp(t, 0, 1)
-  return x * x * x * (x * (x * 6 - 15) + 10)
-}
 
 const WALL_FLY_SEC = 1.28
 
@@ -25,6 +21,10 @@ export function CameraRig({ pov, kioskZoom = 'close', onArrive, locked = false, 
   const flyFovFrom = useRef(CAM.fov)
   const flyFovTo = useRef(CAM.fov)
   const flyT = useRef(1)
+  const flyDur = useRef(WALL_FLY_SEC)
+  // Kiosk left/right only. Wall flights use the branch below and must
+  // not share this flag — a wall return still has its own curve.
+  const panOn = useRef(false)
   const reducedMotion = useMemo(
     () => typeof window !== 'undefined'
       && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
@@ -62,13 +62,16 @@ export function CameraRig({ pov, kioskZoom = 'close', onArrive, locked = false, 
     if (locked) {
       arrivedFor.current = null
       lastPov.current = povNow
+      panOn.current = false
       if (busyRef) busyRef.current = false
       return
     }
     arrivedFor.current = null
+    const shot = resolvePov(povNow, aspectRef.current, zoomNow)
     if (isWallPov(povNow)) {
-      const shot = resolvePov(povNow, aspectRef.current, zoomNow)
+      panOn.current = false
       flyT.current = 0
+      flyDur.current = WALL_FLY_SEC
       flyFrom.copy(camera.position)
       flyLookFrom.copy(look.current)
       flyFovFrom.current = camera.fov
@@ -78,7 +81,34 @@ export function CameraRig({ pov, kioskZoom = 'close', onArrive, locked = false, 
       flyLookGoal.set(...shot.lookAt)
       flyFovTo.current = shot.fov
       if (busyRef) busyRef.current = true
+      return
     }
+    // Side shots and the return to the close-up. A wall→kiosk return
+    // keeps the existing curve (lastPov is still the wall here).
+    const kioskPan = povNow === 'kiosk' && !isWallPov(lastPov.current)
+    if (!kioskPan) {
+      panOn.current = false
+      return
+    }
+    flyGoal.set(...shot.position)
+    flyLookGoal.set(...shot.lookAt)
+    const already = camera.position.distanceTo(flyGoal) < 0.08
+      && look.current.distanceTo(flyLookGoal) < 0.08
+      && Math.abs(camera.fov - shot.fov) < 0.4
+    // Mount and the intro handoff are already on the shot. Starting a
+    // pan there would replay 0.75s of nothing before the kiosk arrives.
+    if (already) {
+      panOn.current = false
+      return
+    }
+    flyT.current = 0
+    flyDur.current = KIOSK_PAN_SEC
+    flyFrom.copy(camera.position)
+    flyLookFrom.copy(look.current)
+    flyFovFrom.current = camera.fov
+    flyFovTo.current = shot.fov
+    panOn.current = true
+    if (busyRef) busyRef.current = true
   }, [flyKey, locked, camera, flyFrom, flyLookFrom, flyGoal, flyLookGoal, busyRef])
 
   useLayoutEffect(() => {
@@ -89,6 +119,7 @@ export function CameraRig({ pov, kioskZoom = 'close', onArrive, locked = false, 
   useFrame((_, dt) => {
     if (locked) {
       wasLocked.current = true
+      panOn.current = false
       if (busyRef) busyRef.current = false
       return
     }
@@ -114,14 +145,15 @@ export function CameraRig({ pov, kioskZoom = 'close', onArrive, locked = false, 
     goalPos.set(...shot.position)
     goalLook.set(...shot.lookAt)
 
-    const settle = () => {
+    const settle = (fov = shot.fov) => {
       camera.position.copy(goalPos)
       look.current.copy(goalLook)
-      camera.fov = shot.fov
+      camera.fov = fov
       camera.lookAt(look.current)
       camera.updateProjectionMatrix()
       arrivedFor.current = shotId
       lastPov.current = pov
+      panOn.current = false
       if (busyRef) busyRef.current = false
       onArrive?.(pov)
     }
@@ -134,8 +166,7 @@ export function CameraRig({ pov, kioskZoom = 'close', onArrive, locked = false, 
     if (isWallPov(pov)) {
       // Keep the ease on the clock. Clamping a hitch to 50ms made the
       // shot fall behind, then catch up as a jerk on the next frames.
-      const step = Math.min(Math.max(dt, 0), 0.125)
-      flyT.current = Math.min(1, flyT.current + step / WALL_FLY_SEC)
+      flyT.current = stepFlight(flyT.current, dt, WALL_FLY_SEC)
       const u = smootherstep(flyT.current)
       camera.position.lerpVectors(flyFrom, flyGoal, u)
       look.current.lerpVectors(flyLookFrom, flyLookGoal, u)
@@ -143,6 +174,24 @@ export function CameraRig({ pov, kioskZoom = 'close', onArrive, locked = false, 
       camera.lookAt(look.current)
       camera.updateProjectionMatrix()
       if (flyT.current >= 1) settle()
+      return
+    }
+
+    if (panOn.current) {
+      // Frozen start and end. t = 1 is the goal, so the last frame is
+      // the end of the ease, not a snap from a leftover distance.
+      flyT.current = stepFlight(flyT.current, dt, flyDur.current)
+      const u = smootherstep(flyT.current)
+      camera.position.lerpVectors(flyFrom, flyGoal, u)
+      look.current.lerpVectors(flyLookFrom, flyLookGoal, u)
+      camera.fov = THREE.MathUtils.lerp(flyFovFrom.current, flyFovTo.current, u)
+      camera.lookAt(look.current)
+      camera.updateProjectionMatrix()
+      if (flyT.current >= 1) {
+        goalPos.copy(flyGoal)
+        goalLook.copy(flyLookGoal)
+        settle(flyFovTo.current)
+      }
       return
     }
 

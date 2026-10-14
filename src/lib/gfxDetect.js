@@ -74,6 +74,9 @@ export const HITCH_DROP = 1.6
 export const HITCH_PROMOTE_MAX = 0.4
 export const PROMOTE_AFTER_DROP_SEC = 8
 export const DROP_AFTER_PROMOTE_SEC = 6
+/** After a camera move, ignore frame times for this long. The hitch when
+ * the shot lands is not a reason to resize the buffer or rebuild lights. */
+export const QUALITY_SETTLE_SEC = 1.75
 
 const SOFTWARE_RE = /swiftshader|llvmpipe|softpipe|software|microsoft basic render|mesa offscreen/i
 const WEAK_GPU_RE = /mali-4|mali-t|adreno\s*(?:\(tm\)\s*)?[34]\d{2}|intel\(r\)\s*hd\s*graphics|powervr|sgx|videocore/i
@@ -118,7 +121,9 @@ export function stepUp(tier) {
   return 'high'
 }
 
-/** A drop may tighten the pixel cap. It must not open a higher one. */
+/** A tier change may tighten the pixel cap. It must not open a higher one.
+ * Promoting used to clear the cap, so a softened 1.0 jumped back to 1.25
+ * and the next dip dropped the tier again — the tracks-view flash. */
 export function dprCapAfterDrop(currentCap, nextTierCap) {
   const from = Number(currentCap)
   const to = Number(nextTierCap)
@@ -285,4 +290,36 @@ export function decideQualityStep({
   }
 
   return { action: 'hold', warmCorrectable: false }
+}
+
+/**
+ * Camera motion is not a quality sample. Wipe the open window while the
+ * shot is moving, and keep it wiped until QUALITY_SETTLE_SEC of still
+ * frames have passed, so the landing hitch cannot soften or drop.
+ */
+export function trackQualityMotion(state, moving, dt) {
+  const frame = Math.min(Math.max(Number(dt) || 0, 0), 0.1)
+  const next = {
+    t: state?.t || 0,
+    n: state?.n || 0,
+    hitches: state?.hitches || 0,
+    hold: state?.hold || 0,
+    sample: true,
+  }
+  if (moving) {
+    next.t = 0
+    next.n = 0
+    next.hitches = 0
+    next.hold = QUALITY_SETTLE_SEC
+    next.sample = false
+    return next
+  }
+  if (next.hold > 0) {
+    next.hold = Math.max(0, next.hold - frame)
+    next.t = 0
+    next.n = 0
+    next.hitches = 0
+    next.sample = false
+  }
+  return next
 }

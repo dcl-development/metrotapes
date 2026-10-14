@@ -8,6 +8,8 @@ import {
   dprCapAfterDrop,
   stepDown,
   stepUp,
+  QUALITY_SETTLE_SEC,
+  trackQualityMotion,
 } from './gfxDetect.js'
 
 test('low stays light and bloom stays high-only', () => {
@@ -173,4 +175,32 @@ test('a drop never raises the pixel cap', () => {
   assert.equal(dprCapAfterDrop(1, 1.5), 1)
   assert.equal(dprCapAfterDrop(1.25, 1.5), 1.25)
   assert.equal(dprCapAfterDrop(1.5, 1.25), 1.25)
+})
+
+test('a promote cannot reopen a softened pixel cap', () => {
+  assert.equal(dprCapAfterDrop(1, 1.25), 1)
+  assert.equal(dprCapAfterDrop(1.5, 1.25), 1.25)
+})
+
+test('camera motion wipes the quality window and holds after it stops', () => {
+  const dirty = { t: 1.2, n: 40, hitches: 8, hold: 0 }
+  const moving = trackQualityMotion(dirty, true, 0.016)
+  assert.equal(moving.sample, false)
+  assert.equal(moving.t, 0)
+  assert.equal(moving.n, 0)
+  assert.equal(moving.hitches, 0)
+  assert.equal(moving.hold, QUALITY_SETTLE_SEC)
+
+  let held = moving
+  let elapsed = 0
+  while (held.hold > 0 && elapsed < 5) {
+    held = trackQualityMotion(held, false, 0.1)
+    elapsed += 0.1
+    assert.equal(held.sample, false)
+    assert.equal(held.hitches, 0)
+  }
+  assert.ok(elapsed >= QUALITY_SETTLE_SEC - 0.001)
+  const open = trackQualityMotion(held, false, 0.016)
+  assert.equal(open.sample, true)
+  assert.equal(open.hold, 0)
 })

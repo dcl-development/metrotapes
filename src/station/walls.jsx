@@ -176,6 +176,8 @@ export function WallBoards({
   const lastObj = useRef({ photo: '', video: '', about: '' })
   const htmlOpacity = useRef(fadeIn ? 0 : 1)
   const fadeLatch = useRef(fadeIn)
+  const opacityWritten = useRef('')
+  const opacityNode = useRef(null)
   const shown = useRef({})
   const lastRayAt = useRef(0)
   const reducedMotion = useMemo(
@@ -226,7 +228,11 @@ export function WallBoards({
         }
         objEl.style.visibility = 'hidden'
       })
-      root.style.opacity = '0'
+      if (opacityWritten.current !== '0' || opacityNode.current !== root) {
+        opacityWritten.current = '0'
+        opacityNode.current = root
+        root.style.opacity = '0'
+      }
       return
     }
 
@@ -332,7 +338,12 @@ export function WallBoards({
     } else {
       htmlOpacity.current = target
     }
-    root.style.opacity = htmlOpacity.current.toFixed(3)
+    const nextOpacity = htmlOpacity.current.toFixed(3)
+    if (opacityWritten.current !== nextOpacity || opacityNode.current !== root) {
+      opacityWritten.current = nextOpacity
+      opacityNode.current = root
+      root.style.opacity = nextOpacity
+    }
   })
 
   const x = WALL_X + 0.04

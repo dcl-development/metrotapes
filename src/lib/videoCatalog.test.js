@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { loadVideoCatalog, resetVideoCatalogForTests, youtubeThumb } from './videoCatalog.js'
+import {
+  kioskPreviewAllowed,
+  loadVideoCatalog,
+  resetVideoCatalogForTests,
+  youtubePreviewEmbed,
+  youtubeThumb,
+} from './videoCatalog.js'
 
 describe('youtubeThumb', () => {
   it('uses hqdefault, which exists when maxres does not', () => {
@@ -12,6 +18,41 @@ describe('youtubeThumb', () => {
   it('drops an empty id instead of requesting a bad URL', () => {
     assert.equal(youtubeThumb(''), '')
     assert.equal(youtubeThumb(null), '')
+  })
+})
+
+describe('youtubePreviewEmbed', () => {
+  it('loops a muted inline low-res preview', () => {
+    const url = new URL(youtubePreviewEmbed('HrYCYJVQ4Vw'))
+    assert.equal(url.searchParams.get('autoplay'), '1')
+    assert.equal(url.searchParams.get('mute'), '1')
+    assert.equal(url.searchParams.get('playsinline'), '1')
+    assert.equal(url.searchParams.get('loop'), '1')
+    assert.equal(url.searchParams.get('playlist'), 'HrYCYJVQ4Vw')
+    assert.equal(url.searchParams.get('controls'), '0')
+    assert.equal(url.searchParams.get('vq'), 'small')
+  })
+
+  it('drops an empty id', () => {
+    assert.equal(youtubePreviewEmbed(''), '')
+    assert.equal(youtubePreviewEmbed('nope'), '')
+  })
+})
+
+describe('kioskPreviewAllowed', () => {
+  const on = { live: true, hidden: false, reducedMotion: false, tier: 'mid', phone: false }
+
+  it('plays on a live desktop kiosk', () => {
+    assert.equal(kioskPreviewAllowed(on), true)
+    assert.equal(kioskPreviewAllowed({ ...on, tier: 'high' }), true)
+  })
+
+  it('stays on the still when the kiosk, the tab, motion, the tier, or the phone says no', () => {
+    assert.equal(kioskPreviewAllowed({ ...on, live: false }), false)
+    assert.equal(kioskPreviewAllowed({ ...on, hidden: true }), false)
+    assert.equal(kioskPreviewAllowed({ ...on, reducedMotion: true }), false)
+    assert.equal(kioskPreviewAllowed({ ...on, tier: 'low' }), false)
+    assert.equal(kioskPreviewAllowed({ ...on, phone: true }), false)
   })
 })
 

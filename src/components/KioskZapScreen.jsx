@@ -116,18 +116,20 @@ export default function KioskZapScreen({
       <MenuLayer>
         <KioskScreen live={live && phase === 'open'} />
       </MenuLayer>
-      <Cover
-        $phase={phase}
-        $reduced={reducedMotion}
-        onAnimationEnd={(e) => {
-          if (e.target !== e.currentTarget) return
-          if (ended.current) return
-          ended.current = true
-          onPhaseEnd?.(phase)
-        }}
-      >
-        <Logo src="/mta-logo.jpg" alt="MTA" width={132} height={74} />
-      </Cover>
+      {phase === 'open' ? null : (
+        <Cover
+          $phase={phase}
+          $reduced={reducedMotion}
+          onAnimationEnd={(e) => {
+            if (e.target !== e.currentTarget) return
+            if (ended.current) return
+            ended.current = true
+            onPhaseEnd?.(phase)
+          }}
+        >
+          <Logo src="/mta-logo.jpg" alt="MTA" width={132} height={74} />
+        </Cover>
+      )}
     </Root>
   )
 }

@@ -319,7 +319,7 @@ function LedDots({ rows, color, pitch = PITCH, r = LED_R }) {
       height={h * pitch}
       viewBox={`0 0 ${w * pitch} ${h * pitch}`}
       aria-hidden="true"
-      style={{ display: 'block', overflow: 'visible', filter: `drop-shadow(0 0 2px ${color})` }}
+      style={{ display: 'block', overflow: 'visible' }}
     >
       {dots}
     </svg>

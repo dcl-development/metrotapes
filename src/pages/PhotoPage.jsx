@@ -125,7 +125,6 @@ const StripTrack = styled.div`
   width: max-content;
   gap: ${GAP}px;
   padding: 0;
-  will-change: transform;
 `
 
 const StripShot = styled.div`

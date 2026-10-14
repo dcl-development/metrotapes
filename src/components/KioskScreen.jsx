@@ -5,8 +5,6 @@ import { font, route } from '../styles/theme'
 import MetroMachineFace from './MetroMachineFace'
 import { KIOSK_PANEL_W, KIOSK_PANEL_H, KIOSK_RADIUS_PX } from '../lib/kioskSize'
 import { useKioskLeave } from '../context/useKioskLeave'
-import { useGfx } from '../lib/useGfx'
-import { kioskPreviewAllowed, youtubePreviewEmbed } from '../lib/videoCatalog'
 
 const Panel = styled.div`
   width: ${KIOSK_PANEL_W}px;
@@ -200,7 +198,6 @@ const ClipMeta = styled.div`
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 1;
   padding: 10px 5px 4px;
   background: linear-gradient(transparent, rgba(0, 0, 0, 0.85));
   font-size: 9px;
@@ -208,18 +205,6 @@ const ClipMeta = styled.div`
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  pointer-events: none;
-`
-
-const ClipFrame = styled.iframe`
-  display: block;
-  position: relative;
-  z-index: 0;
-  width: 100%;
-  aspect-ratio: 16 / 10;
-  border: 0;
-  background: #000;
-  pointer-events: none;
 `
 
 const More = styled(Link)`
@@ -463,41 +448,12 @@ function useRecentVideos() {
   return clips
 }
 
-function useKioskPreview(live) {
-  const { tier } = useGfx()
-  const [allowed, setAllowed] = useState(false)
-  useEffect(() => {
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const phone = window.matchMedia('(max-width: 767px)')
-    const apply = () => {
-      setAllowed(kioskPreviewAllowed({
-        live,
-        hidden: document.hidden,
-        reducedMotion: reduced.matches,
-        tier,
-        phone: phone.matches,
-      }))
-    }
-    apply()
-    document.addEventListener('visibilitychange', apply)
-    reduced.addEventListener?.('change', apply)
-    phone.addEventListener?.('change', apply)
-    return () => {
-      document.removeEventListener('visibilitychange', apply)
-      reduced.removeEventListener?.('change', apply)
-      phone.removeEventListener?.('change', apply)
-    }
-  }, [live, tier])
-  return allowed
-}
-
 export default function KioskScreen({ live = false }) {
   const navigate = useNavigate()
   const kioskLeave = useKioskLeave()
   const time = useClock()
   const weather = useNycWeather()
   const clips = useRecentVideos()
-  const preview = useKioskPreview(live)
 
   const goTo = (to) => {
     if (!live) return
@@ -534,7 +490,6 @@ export default function KioskScreen({ live = false }) {
           if (!video) {
             return <ThumbGhost key={`ghost-${i}`} aria-hidden />
           }
-          const src = preview ? youtubePreviewEmbed(video.videoId) : ''
           return (
             <Clip
               key={video.id || video.videoId}
@@ -542,20 +497,10 @@ export default function KioskScreen({ live = false }) {
               onClick={() => goTo(`/video?v=${encodeURIComponent(video.videoId)}`)}
               aria-label={`Play ${video.title}`}
             >
-              {src ? (
-                <ClipFrame
-                  src={src}
-                  title=""
-                  tabIndex={-1}
-                  loading="lazy"
-                  allow="autoplay; encrypted-media"
-                />
-              ) : (
-                <Thumb
-                  src={`https://i.ytimg.com/vi/${video.videoId}/hqdefault.jpg`}
-                  alt=""
-                />
-              )}
+              <Thumb
+                src={`https://i.ytimg.com/vi/${video.videoId}/hqdefault.jpg`}
+                alt=""
+              />
               <ClipMeta>{video.title}</ClipMeta>
             </Clip>
           )

@@ -62,10 +62,12 @@
   cursor: grabbing;
 }
 
-/* Phones: drop gloss + fog pseudo-elements. They are barely readable at 390px
-   and each one is an extra compositing layer on every slice. */
+/* Phones and weak machines: drop gloss + fog. Each one is an extra
+   compositing layer on every slice, and they don't read at this size. */
 .root[data-compact='true'] .slice::before,
-.root[data-compact='true'] .slice::after {
+.root[data-compact='true'] .slice::after,
+.root[data-lite='true'] .slice::before,
+.root[data-lite='true'] .slice::after {
   content: none;
   display: none;
 }
@@ -138,16 +140,43 @@
   height: 112px;
   border-radius: 0;
   background-color: #23252a;
-  /* Grain sits on top of the photo (set inline with the photo). Same 720×184
-     plate as the slice, shifted by --grain-x so it is stuck to this frame. */
-  background-image: url('/film-scratches-grain.webp');
-  background-size: 720px 184px;
-  background-position: var(--grain-x, 0px) -36px;
-  background-repeat: repeat-x;
+  /* The photo is an <img> (lazy + async decode). Grain is the pseudo below,
+     a concrete url() so a transformed slice is not re-rastered every frame. */
+}
+
+.ph img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+  z-index: 0;
   /* hairline dark ring + subtle inner highlight */
   box-shadow:
     0 0 0 1px rgba(0, 0, 0, 0.6),
     inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+/* Scratches sit on the photo, aligned with the plate on the film base. */
+.ph::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background-image: url('/film-scratches-grain.webp');
+  background-size: 720px 184px;
+  background-position: var(--grain-x, 0px) -36px;
+  background-repeat: repeat-x;
+}
+
+/* Phone / weak: the scratch plate on every slice is another layer. The film
+   base still carries the same tile. */
+.root[data-compact='true'] .ph::after,
+.root[data-lite='true'] .ph::after {
+  content: none;
+  display: none;
 }
 
 /* gloss: one photo-sized gradient (same in every slice => no seams); only its opacity changes */
@@ -193,7 +222,7 @@
 }
 
 /* keyboard focus ring, drawn on the bent photo itself */
-.slice[data-focus] .ph {
+.slice[data-focus] .ph img {
   box-shadow:
     0 0 0 1px rgba(0, 0, 0, 0.6),
     0 0 0 3px var(--ink),
@@ -203,13 +232,13 @@
 /* Featured photo (the one in the big frame). Inset so it stays inside the
    film window and travels with these slices. MTA yellow, same as the boot
    screen and the R train. */
-.slice[data-current] .ph {
+.slice[data-current] .ph img {
   box-shadow:
     0 0 0 1px rgba(0, 0, 0, 0.6),
     inset 0 0 0 2px #fccc0a;
 }
 
-.slice[data-focus][data-current] .ph {
+.slice[data-focus][data-current] .ph img {
   box-shadow:
     0 0 0 1px rgba(0, 0, 0, 0.6),
     0 0 0 3px var(--ink),

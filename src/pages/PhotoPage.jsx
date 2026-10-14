@@ -44,6 +44,12 @@ const Stage = styled.div`
   padding: 6px 10px 4px;
   box-sizing: border-box;
   container-type: size;
+  /* Above the film, which is allowed to curl up into this area.
+     The box itself does not take clicks, so film beside the frame
+     stays usable. The frame button turns pointer events back on. */
+  position: relative;
+  z-index: 2;
+  pointer-events: none;
 `
 
 const Slide = styled.img`
@@ -59,7 +65,9 @@ const Slide = styled.img`
   z-index: ${(p) => (p.$show ? 2 : 1)};
 `
 
-/** Compact hairpin under the frame. Full viewport width, even if a parent is inset. */
+/** Compact band under the frame, full viewport width. The curl may paint
+    upward out of this slot; the frame sits in a higher layer and blocks
+    hits where they overlap. */
 const CurlBand = styled.div`
   flex: 0 0 clamp(72px, 22%, 168px);
   height: clamp(72px, 22%, 168px);
@@ -68,7 +76,8 @@ const CurlBand = styled.div`
   margin-left: calc(50% - 50vw);
   min-height: 0;
   position: relative;
-  overflow: hidden;
+  z-index: 1;
+  overflow: visible;
 `
 
 const StripRail = styled.div`

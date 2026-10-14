@@ -31,6 +31,10 @@ const Shell = styled.button`
   background: transparent;
   cursor: pointer;
   filter: drop-shadow(0 18px 40px rgba(0, 0, 0, 0.6));
+  /* The stage opts out of hits so film beside the frame stays clickable.
+     This box (ornament + photo) stays on top of any curl behind it. */
+  pointer-events: auto;
+  z-index: 1;
 
   &:focus-visible {
     outline: 2px solid #c4a06a;

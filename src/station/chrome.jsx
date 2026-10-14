@@ -63,6 +63,7 @@ export const Overlay = styled.div`
   overflow: ${(p) => (p.$page ? 'hidden' : 'visible')};
   transform-style: ${(p) => (p.$page ? 'flat' : 'preserve-3d')};
   background: ${(p) => (p.$page ? '#0c0e10' : 'transparent')};
+  transition: background-color 0.5s ease;
   /* Opacity, not visibility — iOS preserve-3d + visibility:hidden never shows children. */
   opacity: 0;
   ${(p) => p.$hide && `
@@ -75,7 +76,7 @@ export const Overlay = styled.div`
     visibility: visible !important;
     perspective: none !important;
     right: 0;
-    bottom: 72px;
+    bottom: 0;
     width: 100% !important;
     height: auto !important;
   `}
@@ -164,6 +165,9 @@ export const KioskGlass = styled.div`
       radial-gradient(ellipse 28% 10% at 78% 58%, rgba(255, 255, 255, 0.04), transparent 70%),
       radial-gradient(ellipse 22% 8% at 16% 88%, rgba(255, 255, 255, 0.05), transparent 72%);
   }
+
+  opacity: ${(p) => (p.$fade ? 0 : 1)};
+  transition: opacity 0.5s ease;
 `
 
 export const KioskGlassDirt = styled.div`
@@ -172,7 +176,8 @@ export const KioskGlassDirt = styled.div`
   z-index: 9;
   pointer-events: none;
   border-radius: inherit;
-  opacity: 0.08;
+  opacity: ${(p) => (p.$fade ? 0 : 0.08)};
+  transition: opacity 0.5s ease;
   background-image:
     url("data:image/svg+xml,${GLASS_SMUDGE_SVG}"),
     radial-gradient(ellipse 38% 16% at 70% 18%, rgba(255, 255, 255, 0.22), transparent 68%),
@@ -188,6 +193,8 @@ export const WallFrame = styled.div`
   border-radius: 0;
   pointer-events: inherit;
   background: #0c0e10;
+  filter: none;
+  transition: filter 0.5s ease;
   contain: ${(p) => (p.$fill ? 'none' : 'strict')};
   ${(p) => !p.$fill && `
     * { pointer-events: none !important; }
@@ -205,6 +212,8 @@ export const StationFilm = styled.div`
   z-index: 5;
   pointer-events: none;
   overflow: hidden;
+  opacity: ${(p) => (p.$fade ? 0 : 1)};
+  transition: opacity 0.5s ease;
 
   &::before {
     content: '';
@@ -423,15 +432,15 @@ export const ChromeBar = styled.div`
   gap: 0.15rem;
   pointer-events: auto;
   ${(p) => p.$dock && `
-    left: 0;
-    right: 0;
-    bottom: 0;
+    left: auto;
+    right: max(0.75rem, env(safe-area-inset-right, 0px));
+    bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
     transform: none;
-    height: 72px;
+    height: auto;
+    width: auto;
     justify-content: flex-end;
-    padding: 0 0.85rem max(0px, env(safe-area-inset-bottom, 0px));
-    box-sizing: border-box;
-    background: #0a0908;
+    padding: 0;
+    background: transparent;
   `}
 `
 

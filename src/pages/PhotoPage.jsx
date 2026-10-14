@@ -3,7 +3,8 @@ import { useLocation } from 'react-router-dom'
 import { createPortal } from 'react-dom'
 import { fetchPhotos } from '../lib/contentApi'
 import { imageAlt } from '../lib/sanity'
-import { photoSources, stripThumb } from '../lib/sanityImage'
+import { imageUrl, photoSources, stripThumb } from '../lib/sanityImage'
+import FilmStrip3D from '../components/filmstrip/FilmStrip3D'
 import styled from 'styled-components'
 import ImageModal from '../components/ImageModal'
 import OrnatePhotoFrame from '../components/OrnatePhotoFrame'
@@ -43,6 +44,12 @@ const Stage = styled.div`
   padding: 6px 10px 4px;
   box-sizing: border-box;
   container-type: size;
+  /* Above the film, which is allowed to curl up into this area.
+     The box itself does not take clicks, so film beside the frame
+     stays usable. The frame button turns pointer events back on. */
+  position: relative;
+  z-index: 2;
+  pointer-events: none;
 `
 
 const Slide = styled.img`
@@ -50,12 +57,27 @@ const Slide = styled.img`
   inset: 0;
   width: 100%;
   height: 100%;
+  /* Cover the opening while the frame eases between aspects. At rest the
+     opening matches the photo, so cover shows the whole picture. */
   object-fit: cover;
   display: block;
   opacity: ${(p) => (p.$show ? 1 : 0)};
   transition: opacity 0.85s ease;
   pointer-events: none;
   z-index: ${(p) => (p.$show ? 2 : 1)};
+`
+
+/** Compact hairpin under the frame. Full viewport width, even if a parent is inset. */
+const CurlBand = styled.div`
+  flex: 0 0 clamp(72px, 22%, 168px);
+  height: clamp(72px, 22%, 168px);
+  width: 100vw;
+  max-width: 100vw;
+  margin-left: calc(50% - 50vw);
+  min-height: 0;
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
 `
 
 const StripRail = styled.div`
@@ -126,6 +148,31 @@ const StripShot = styled.div`
     pointer-events: none;
   }
 `
+
+const STRIP_CAP = 16
+
+function supportsCss3d() {
+  return typeof CSS !== 'undefined'
+    && CSS.supports('transform-style', 'preserve-3d')
+    && CSS.supports('perspective', '1px')
+}
+
+function filmItem(photo, index) {
+  const sources = photoSources(photo)
+  const src = imageUrl(photo, { width: 640 }) || sources.src
+  if (!src) return null
+  const alt = imageAlt(photo, 'Photograph by Ronnie Foreman')
+  const sharp = sources.src && sources.src !== src ? sources.src : undefined
+  return {
+    src,
+    src2x: sharp,
+    alt,
+    label: `Show photo ${index + 1}`,
+    width: sources.width,
+    height: sources.height,
+    aspect: sources.width && sources.height ? sources.width / sources.height : undefined,
+  }
+}
 
 function shotWidth() {
   if (typeof window === 'undefined') return 110
@@ -379,8 +426,9 @@ function FilmStrip({
   )
 }
 
-export default function PhotoPage() {
+export default function PhotoPage({ active = true }) {
   const location = useLocation()
+  const [can3d] = useState(() => typeof window !== 'undefined' && supportsCss3d())
   const [photos, setPhotos] = useState([])
   const [status, setStatus] = useState('loading')
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -435,14 +483,11 @@ export default function PhotoPage() {
     return () => window.clearTimeout(clear)
   }, [featuredIndex])
 
-  useEffect(() => {
-    const cached = aspects.current[featuredIndex]
-    if (cached) setAspect(cached)
-  }, [featuredIndex])
-
   // Auto-advance every ~4.5s — strip recenters, frame follows.
   // The page stays mounted on the wall even when that board is hidden.
+  // While the camera is still on the way, `active` is false and the frame holds.
   useEffect(() => {
+    if (!active) return undefined
     if (!photoAutoplayAllowed(location.pathname, tabHidden)) return undefined
     if (status !== 'ready' || photos.length < 2 || paused || isModalOpen) return undefined
     const reduced = typeof window !== 'undefined'
@@ -453,7 +498,7 @@ export default function PhotoPage() {
       setFeaturedIndex((i) => (i + 1) % photos.length)
     }, AUTO_MS)
     return () => window.clearInterval(id)
-  }, [location.pathname, tabHidden, status, photos.length, paused, isModalOpen])
+  }, [active, location.pathname, tabHidden, status, photos.length, paused, isModalOpen])
 
   const bumpPause = useCallback(() => {
     setPaused(true)
@@ -480,13 +525,34 @@ export default function PhotoPage() {
   const rememberAspect = (index, img) => {
     if (!img?.naturalWidth || !img?.naturalHeight) return
     const next = img.naturalWidth / img.naturalHeight
+    const prev = aspects.current[index]
     aspects.current[index] = next
-    if (index === featuredIndex) setAspect(next)
+    if (index !== featuredIndex) return
+    if (prev != null && Math.abs(prev - next) < 0.01) return
+    setAspect(next)
   }
 
   const featured = photos[featuredIndex] || photos[0]
+  const featuredAspect = aspects.current[featuredIndex]
+    ?? (Number(featured?.width) > 0 && Number(featured?.height) > 0
+      ? Number(featured.width) / Number(featured.height)
+      : aspect)
   const mediaItems = photos.map((photo) => ({ type: 'image', image: photo }))
   const caption = `${String(featuredIndex + 1).padStart(2, '0')} / ${String(photos.length).padStart(2, '0')}`
+  const stripItems = useMemo(() => {
+    const entries = []
+    photos.slice(0, STRIP_CAP).forEach((photo, index) => {
+      const item = filmItem(photo, index)
+      if (item) entries.push({ item, index })
+    })
+    return entries
+  }, [photos])
+  const curlItems = useMemo(() => stripItems.map((entry) => entry.item), [stripItems])
+  // Same 3D strip on the wall and after arrival. `active` only starts the
+  // rAF loop once the camera is on this page. The thumbnail rail is only
+  // for browsers without CSS 3D.
+  const stripSelect = stripItems.findIndex((entry) => entry.index === featuredIndex)
+  const useCurl = can3d && stripItems.length > 0
 
   return (
     <>
@@ -498,7 +564,7 @@ export default function PhotoPage() {
           <>
             <Stage>
               <OrnatePhotoFrame
-                aspect={aspect}
+                aspect={featuredAspect}
                 caption={caption}
                 onClick={() => open(featured, featuredIndex)}
                 aria-label={`Open featured photo: ${imageAlt(featured, 'Photograph by Ronnie Foreman')}`}
@@ -523,7 +589,28 @@ export default function PhotoPage() {
               </OrnatePhotoFrame>
             </Stage>
 
-            {photos.length > 1 ? (
+            {photos.length > 1 && useCurl ? (
+              <CurlBand onPointerDown={bumpPause}>
+                <FilmStrip3D
+                  items={curlItems}
+                  active={active}
+                  mode="3d"
+                  variant="loop"
+                  turnSharpness={1.2}
+                  depth={0.62}
+                  perspective={1300}
+                  speed={0}
+                  height="100%"
+                  selectedIndex={stripSelect >= 0 ? stripSelect : undefined}
+                  ariaLabel="Photo strip"
+                  onSelect={(_item, index) => {
+                    const photoIndex = stripItems[index]?.index
+                    if (typeof photoIndex === 'number') setFeaturedIndex(photoIndex)
+                    bumpPause()
+                  }}
+                />
+              </CurlBand>
+            ) : photos.length > 1 ? (
               <FilmStrip
                 photos={photos}
                 index={featuredIndex}

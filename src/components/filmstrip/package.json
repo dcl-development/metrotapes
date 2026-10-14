@@ -1,0 +1,13 @@
+{
+  "name": "@jakedcl/filmstrip",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Portable 3D filmstrip with a flat fallback. Copy this folder into another project. Not published.",
+  "sideEffects": [
+    "*.css"
+  ],
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  }
+}

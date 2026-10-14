@@ -498,6 +498,19 @@ export default function VideoPage() {
     scroller.current?.scrollTo({ top: 0, behavior: 'smooth' })
   }, [requested, status])
 
+  const onVideo = location.pathname === '/video'
+
+  // The wall keeps this page mounted after you leave. Drop the embed, the
+  // queue selection, and the scroll position so nothing keeps playing behind
+  // the kiosk. `?v=` only lives on /video, so leaving the route clears it.
+  useEffect(() => {
+    if (onVideo) return undefined
+    setPlaying(false)
+    setFeaturedId(null)
+    if (scroller.current) scroller.current.scrollTop = 0
+    return undefined
+  }, [onVideo])
+
   const featured = videos.find((v) => v.videoId === featuredId) || videos[0]
   const featuredIndex = Math.max(0, videos.findIndex((v) => v.videoId === featured?.videoId))
   const featuredDate = formatDate(featured?.publishedAt)
@@ -533,7 +546,7 @@ export default function VideoPage() {
           <Player>
             <ScreenBezel>
               <Frame>
-                {playing ? (
+                {onVideo && playing ? (
                   <VideoIframe
                     key={featured.videoId}
                     src={`https://www.youtube.com/embed/${featured.videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1`}

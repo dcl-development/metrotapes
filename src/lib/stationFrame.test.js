@@ -4,6 +4,7 @@ import {
   composerBufferStale,
   css3dBoxChanged,
   fitFrame,
+  nextPhotoIndex,
   photoAutoplayAllowed,
   preserveDrawingBuffer,
 } from './stationFrame.js'
@@ -53,6 +54,18 @@ describe('photoAutoplayAllowed', () => {
     assert.equal(photoAutoplayAllowed('/about', false), false)
     assert.equal(photoAutoplayAllowed('/video', false), false)
     assert.equal(photoAutoplayAllowed('/photo', true), false)
+  })
+})
+
+describe('nextPhotoIndex', () => {
+  it('steps along the strip and wraps to the first frame', () => {
+    assert.equal(nextPhotoIndex(0, [0, 1, 2]), 1)
+    assert.equal(nextPhotoIndex(2, [0, 1, 2]), 0)
+  })
+
+  it('restarts at the first strip frame when the current photo is not on it', () => {
+    assert.equal(nextPhotoIndex(20, [0, 1, 2]), 0)
+    assert.equal(nextPhotoIndex(0, []), 0)
   })
 })
 

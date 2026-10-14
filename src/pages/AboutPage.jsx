@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import styled from 'styled-components'
 import { fetchAbout } from '../lib/contentApi'
 import { imageAlt } from '../lib/sanity'
@@ -150,8 +151,16 @@ const portableTextComponents = {
 }
 
 export default function AboutPage() {
+  const location = useLocation()
+  const scroller = useRef(null)
   const [aboutContent, setAboutContent] = useState(null)
   const [status, setStatus] = useState('loading')
+
+  useEffect(() => {
+    if (location.pathname === '/about') return undefined
+    if (scroller.current) scroller.current.scrollTop = 0
+    return undefined
+  }, [location.pathname])
 
   useEffect(() => {
     let alive = true
@@ -174,7 +183,7 @@ export default function AboutPage() {
   const photo1 = aboutContent?.photo1
 
   return (
-    <Container>
+    <Container ref={scroller}>
       {status === 'loading' && <FrostNote>Loading…</FrostNote>}
       {status === 'empty' && <FrostNote>No about info yet.</FrostNote>}
       {status === 'error' && <FrostNote>Could not load about info.</FrostNote>}

@@ -27,6 +27,14 @@ export function photoAutoplayAllowed(pathname, hidden) {
   return pathname === '/photo'
 }
 
+/** Next featured photo, walking the strip so the yellow frame can follow. */
+export function nextPhotoIndex(current, indexes) {
+  if (!indexes || indexes.length === 0) return 0
+  const pos = indexes.indexOf(current)
+  const step = pos < 0 ? 0 : pos + 1
+  return indexes[step % indexes.length]
+}
+
 /**
  * Largest frame of `frameAspect` (width / height) that fits a stage.
  * Used so a wide photo does not paint past the tablet viewport.

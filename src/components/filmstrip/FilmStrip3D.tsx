@@ -40,7 +40,6 @@ import {
   type PointerEvent,
 } from 'react';
 import styles from './FilmStrip3D.module.css';
-import FilmStripFlat from './FilmStripFlat';
 import { cssUrl, DEFAULT_GRAIN_SRC } from './grain';
 
 export { DEFAULT_GRAIN_SRC };
@@ -115,6 +114,8 @@ export type FilmStrip3DProps = {
    * Default true so a standalone strip keeps running.
    */
   active?: boolean;
+  /** Photo index to bring to the front. Snaps when it changes. */
+  selectedIndex?: number;
 };
 
 export type FilmStripMode = 'auto' | '3d' | 'flat';
@@ -878,6 +879,7 @@ export default function FilmStrip3D({
   grainSrc = DEFAULT_GRAIN_SRC,
   printFont = PRINT_FONT,
   active = true,
+  selectedIndex,
 }: FilmStrip3DProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const onReadyRef = useRef(onReady);
@@ -988,6 +990,7 @@ export default function FilmStrip3D({
     consumeSwallow: () => boolean;
     refresh: () => void;
     syncActive: () => void;
+    showIndex: (index: number) => void;
   } | null>(null);
 
   const asLinks = useMemo(() => items.length > 0 && items.every((i) => !!i.href), [items]);
@@ -1887,6 +1890,18 @@ export default function FilmStrip3D({
         if (shouldRun()) start();
         else stop();
       },
+      showIndex(index: number) {
+        const len = lay.L;
+        if (!len || !Number.isFinite(index)) return;
+        const i = mod(Math.round(index), len);
+        let kc = kmin;
+        while (cumAt(lay, kc + 1) + off <= heroS) kc++;
+        let k = kc - mod(kc, len) + i;
+        if (k - kc > len / 2) k -= len;
+        else if (kc - k > len / 2) k += len;
+        snapTo = heroS - pitchAt(lay, k) / 2 - cumAt(lay, k);
+        kick();
+      },
     };
     api.current = bridge;
 
@@ -1939,6 +1954,16 @@ export default function FilmStrip3D({
   useIsoLayoutEffect(() => {
     api.current?.syncActive();
   }, [active]);
+
+  const selectedRef = useRef(selectedIndex);
+  useIsoLayoutEffect(() => {
+    if (selectedIndex == null || selectedIndex === selectedRef.current) {
+      selectedRef.current = selectedIndex;
+      return;
+    }
+    selectedRef.current = selectedIndex;
+    api.current?.showIndex(selectedIndex);
+  }, [selectedIndex]);
 
   useEffect(() => {
     if (tier === 'ssr' || !flat) return;
@@ -2041,9 +2066,7 @@ export default function FilmStrip3D({
       onBlur={onBlur}
       onKeyDown={onKeyDown}
     >
-      {flat ? (
-        <FilmStripFlat items={list} onSelect={onSelect} grainSrc={grainSrc} active={active} />
-      ) : (
+      {flat ? null : (
         /* base + photos, sliced along the path (decorative; the buttons below carry the semantics) */
         <div className={styles.stage}>
           {show3d &&

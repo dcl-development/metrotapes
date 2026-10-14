@@ -1,26 +1,29 @@
 import styled from 'styled-components'
 
 /**
- * Carved gold frame PNG (transparent opening), stretched so the
- * opening matches the photo aspect. Fills its parent as large as possible.
+ * Gilded frame (1378×1142). The opening is the largest fully clear
+ * rectangle in the alpha (x 209–1170, y 228–908), not the decorative
+ * cutouts above the beading. The photo covers that hole; the ornament
+ * sits on top. The shell keeps the file's aspect so it scales without
+ * stretching.
  */
-const OPEN_W = 0.6106
-const OPEN_H = 0.6516
+const FRAME_W = 1378
+const FRAME_H = 1142
+const FRAME_ASPECT = FRAME_W / FRAME_H
 const FRAME_INSET = {
-  left: '19.19%',
-  right: '19.75%',
-  top: '21.19%',
-  bottom: '13.64%',
+  left: `${(209 / FRAME_W) * 100}%`,
+  right: `${((FRAME_W - 1171) / FRAME_W) * 100}%`,
+  top: `${(228 / FRAME_H) * 100}%`,
+  bottom: `${((FRAME_H - 909) / FRAME_H) * 100}%`,
 }
 
 const Shell = styled.button`
   position: relative;
   display: block;
-  /* Fill the stage: as big as container allows while keeping opening aspect. */
-  width: min(100%, calc(100cqh * ${(p) => p.$frameAspect}));
+  width: min(100%, calc(100cqh * ${FRAME_ASPECT}));
   max-width: 100%;
   max-height: 100%;
-  aspect-ratio: ${(p) => p.$frameAspect};
+  aspect-ratio: ${FRAME_ASPECT};
   height: auto;
   margin: 0;
   padding: 0;
@@ -28,7 +31,6 @@ const Shell = styled.button`
   background: transparent;
   cursor: pointer;
   filter: drop-shadow(0 18px 40px rgba(0, 0, 0, 0.6));
-  transition: width 0.7s ease, aspect-ratio 0.7s ease;
 
   &:focus-visible {
     outline: 2px solid #c4a06a;
@@ -42,19 +44,25 @@ const Well = styled.div`
   right: ${FRAME_INSET.right};
   top: ${FRAME_INSET.top};
   bottom: ${FRAME_INSET.bottom};
-  background: #0a0806;
   overflow: hidden;
+  background: transparent;
 `
 
-const FrameArt = styled.img`
+const FrameArt = styled.picture`
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: fill;
   pointer-events: none;
   z-index: 3;
   user-select: none;
+
+  img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: fill;
+  }
 `
 
 const Caption = styled.div`
@@ -76,7 +84,6 @@ const Caption = styled.div`
 `
 
 export default function OrnatePhotoFrame({
-  aspect = 4 / 3,
   caption = '',
   children,
   onClick,
@@ -86,13 +93,9 @@ export default function OrnatePhotoFrame({
   onBlur,
   'aria-label': ariaLabel,
 }) {
-  const photoAspect = Number.isFinite(aspect) && aspect > 0.2 && aspect < 5 ? aspect : 4 / 3
-  const frameAspect = photoAspect * (OPEN_H / OPEN_W)
-
   return (
     <Shell
       type="button"
-      $frameAspect={frameAspect}
       onClick={onClick}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
@@ -101,7 +104,10 @@ export default function OrnatePhotoFrame({
       aria-label={ariaLabel}
     >
       <Well>{children}</Well>
-      <FrameArt src="/photo-frame.png" alt="" draggable={false} />
+      <FrameArt>
+        <source srcSet="/ornate-frame.webp" type="image/webp" />
+        <img src="/ornate-frame.png" alt="" draggable={false} />
+      </FrameArt>
       {caption ? <Caption>{caption}</Caption> : null}
     </Shell>
   )

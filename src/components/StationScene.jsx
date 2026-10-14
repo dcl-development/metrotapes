@@ -196,7 +196,6 @@ export default function StationScene({
   const pickAt = useRef(0)
   const cameraBusyRef = useRef(false)
   const blockClicksRef = useRef(false)
-  const immerseTimer = useRef(null)
   const interactTimer = useRef(null)
   const onFlatRef = useRef(onFlat)
   const onReadyRef = useRef(onReady)
@@ -323,19 +322,14 @@ export default function StationScene({
     setFlying(false)
     setCamSettled(true)
     setKioskArrived(next === 'kiosk')
-    if (immerseTimer.current) {
-      window.clearTimeout(immerseTimer.current)
-      immerseTimer.current = null
-    }
     if (isWallPov(next)) {
-      immerseTimer.current = window.setTimeout(() => {
-        setImmersed(true)
-        immerseTimer.current = null
-      }, reducedMotion ? 0 : 40)
+      // The wall is already the real page. Switch the moment the camera
+      // reports arrival so the projected board doesn't sit on screen.
+      setImmersed(true)
       return
     }
     setImmersed(false)
-  }, [onArrive, reducedMotion])
+  }, [onArrive])
 
   const handleIntroDone = useCallback(() => {
     // WindCard already parked the camera at kiosk — don't wait on CameraRig arrive
@@ -358,10 +352,6 @@ export default function StationScene({
     }
     prevPov.current = pov
     setImmersed(false)
-    if (immerseTimer.current) {
-      window.clearTimeout(immerseTimer.current)
-      immerseTimer.current = null
-    }
   }, [pov])
 
   // Screens on for intro fly-in (preloaded). Zap open while dimmed so the LCD
@@ -528,7 +518,7 @@ export default function StationScene({
       root.style.width = '100%'
       root.style.height = 'auto'
       root.style.right = '0px'
-      root.style.bottom = '72px'
+      root.style.bottom = '0px'
       root.style.left = '0px'
       root.style.top = '0px'
       if (cam) {
@@ -664,15 +654,15 @@ export default function StationScene({
                     $fill={pageView && pov === b.id}
                     $w={wall.panelW}
                     $h={wall.panelH}
-                    $soft={settings.softScreens}
+                    $soft={settings.softScreens && pov !== b.id}
                   >
                     {b.id === 'photo' && isValidElement(wallPages.photo)
                       ? cloneElement(wallPages.photo, { active: pageView && pov === 'photo' })
                       : wallPages[b.id]}
                     {pageView && pov === b.id ? null : (
                       <>
-                        <KioskGlass aria-hidden />
-                        <KioskGlassDirt aria-hidden />
+                        <KioskGlass $fade={pov === b.id} aria-hidden />
+                        <KioskGlassDirt $fade={pov === b.id} aria-hidden />
                       </>
                     )}
                   </WallFrame>
@@ -686,6 +676,7 @@ export default function StationScene({
         <StationFilm
           $grain={settings.grainOpacity ?? 0.12}
           $ca={Boolean(settings.ca)}
+          $fade={isWallPov(pov)}
           aria-hidden
         />
       )}

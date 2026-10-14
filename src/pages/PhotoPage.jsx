@@ -59,11 +59,13 @@ const Slide = styled.img`
   z-index: ${(p) => (p.$show ? 2 : 1)};
 `
 
-/** Short band under the frame. Percent of this page, not the viewport. */
+/** Compact hairpin under the frame. Full viewport width, even if a parent is inset. */
 const CurlBand = styled.div`
   flex: 0 0 clamp(72px, 22%, 168px);
   height: clamp(72px, 22%, 168px);
-  width: 100%;
+  width: 100vw;
+  max-width: 100vw;
+  margin-left: calc(50% - 50vw);
   min-height: 0;
   position: relative;
   overflow: hidden;
@@ -428,10 +430,8 @@ export default function PhotoPage({ active = true }) {
   const [selectedImage, setSelectedImage] = useState(null)
   const [featuredIndex, setFeaturedIndex] = useState(0)
   const [paused, setPaused] = useState(false)
-  const [aspect, setAspect] = useState(4 / 3)
   const [layers, setLayers] = useState([{ key: 0, index: 0, show: true }])
   const layerKey = useRef(0)
-  const aspects = useRef({})
   const resumeTimer = useRef(0)
   const [tabHidden, setTabHidden] = useState(
     () => typeof document !== 'undefined' && document.hidden,
@@ -486,14 +486,11 @@ export default function PhotoPage({ active = true }) {
     return () => window.clearTimeout(clear)
   }, [featuredIndex])
 
-  useEffect(() => {
-    const cached = aspects.current[featuredIndex]
-    if (cached) setAspect(cached)
-  }, [featuredIndex])
-
   // Auto-advance every ~4.5s — strip recenters, frame follows.
   // The page stays mounted on the wall even when that board is hidden.
+  // While the camera is still on the way, `active` is false and the frame holds.
   useEffect(() => {
+    if (!active) return undefined
     if (!photoAutoplayAllowed(location.pathname, tabHidden)) return undefined
     if (status !== 'ready' || photos.length < 2 || paused || isModalOpen) return undefined
     const reduced = typeof window !== 'undefined'
@@ -504,7 +501,7 @@ export default function PhotoPage({ active = true }) {
       setFeaturedIndex((i) => (i + 1) % photos.length)
     }, AUTO_MS)
     return () => window.clearInterval(id)
-  }, [location.pathname, tabHidden, status, photos.length, paused, isModalOpen])
+  }, [active, location.pathname, tabHidden, status, photos.length, paused, isModalOpen])
 
   const bumpPause = useCallback(() => {
     setPaused(true)
@@ -528,13 +525,6 @@ export default function PhotoPage({ active = true }) {
     setIsModalOpen(true)
   }
 
-  const rememberAspect = (index, img) => {
-    if (!img?.naturalWidth || !img?.naturalHeight) return
-    const next = img.naturalWidth / img.naturalHeight
-    aspects.current[index] = next
-    if (index === featuredIndex) setAspect(next)
-  }
-
   const featured = photos[featuredIndex] || photos[0]
   const mediaItems = photos.map((photo) => ({ type: 'image', image: photo }))
   const caption = `${String(featuredIndex + 1).padStart(2, '0')} / ${String(photos.length).padStart(2, '0')}`
@@ -547,10 +537,11 @@ export default function PhotoPage({ active = true }) {
     return entries
   }, [photos])
   const curlItems = useMemo(() => stripItems.map((entry) => entry.item), [stripItems])
-  // Projected wall flattens preserve-3d. No CSS 3D, or a page so short the
-  // frame would be crowded, keeps the original thumbnail rail.
+  // Same band on the wall and after arrival. The curl stays mounted but
+  // paused until the camera lands (`active`). No CSS 3D, or a page so short
+  // the frame would be crowded, keeps the original thumbnail rail.
   const stripSelect = stripItems.findIndex((entry) => entry.index === featuredIndex)
-  const useCurl = active && can3d && stripItems.length > 0 && (pageH === 0 || pageH >= MIN_PAGE_H)
+  const useCurl = can3d && stripItems.length > 0 && (pageH === 0 || pageH >= MIN_PAGE_H)
 
   return (
     <>
@@ -562,7 +553,6 @@ export default function PhotoPage({ active = true }) {
           <>
             <Stage>
               <OrnatePhotoFrame
-                aspect={aspect}
                 caption={caption}
                 onClick={() => open(featured, featuredIndex)}
                 aria-label={`Open featured photo: ${imageAlt(featured, 'Photograph by Ronnie Foreman')}`}
@@ -580,7 +570,6 @@ export default function PhotoPage({ active = true }) {
                       alt={layer.show ? imageAlt(photo, 'Photograph by Ronnie Foreman') : ''}
                       aria-hidden={layer.show ? undefined : true}
                       $show={layer.show}
-                      onLoad={(e) => rememberAspect(layer.index, e.currentTarget)}
                     />
                   )
                 })}
@@ -593,8 +582,10 @@ export default function PhotoPage({ active = true }) {
                   items={curlItems}
                   active={active}
                   mode="3d"
-                  variant="ribbon"
-                  amplitude={0.65}
+                  variant="loop"
+                  turnSharpness={1.2}
+                  depth={0.62}
+                  perspective={1300}
                   speed={0}
                   height="100%"
                   selectedIndex={stripSelect >= 0 ? stripSelect : undefined}

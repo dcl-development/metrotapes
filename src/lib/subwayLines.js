@@ -1,4 +1,4 @@
-/** Official MTA subway line bullets (color + letter). */
+/** Official MTA service bullets (color + glyph). */
 export const SUBWAY_LINES = [
   { line: '1', color: '#EE352E', textColor: 'white' },
   { line: '2', color: '#EE352E', textColor: 'white' },
@@ -18,7 +18,10 @@ export const SUBWAY_LINES = [
   { line: 'J', color: '#996633', textColor: 'white' },
   { line: 'Z', color: '#996633', textColor: 'white' },
   { line: 'L', color: '#A7A9AC', textColor: 'white' },
-  { line: 'S', color: '#808183', textColor: 'white' },
+  { line: 'N', color: '#FCCC0A', textColor: 'black' },
   { line: 'Q', color: '#FCCC0A', textColor: 'black' },
   { line: 'R', color: '#FCCC0A', textColor: 'black' },
+  { line: 'W', color: '#FCCC0A', textColor: 'black' },
+  { line: 'S', color: '#808183', textColor: 'white' },
+  { line: 'SIR', color: '#0039A6', textColor: 'white' },
 ]

@@ -441,9 +441,9 @@ export const ChromeBar = styled.div`
   `}
 `
 
-/** Bottom corners of the home station. Same look-aside as the side strips.
-    Lives inside the stage, under the kiosk overlay (z-index 3). The chrome
-    bar stays above both, so the screen and the zoom button keep their clicks. */
+/** Bottom corners. Same look-aside as the pan arrows.
+    Lives inside the stage, under the kiosk and wall overlays (z-index 3).
+    The chrome bar stays above both, so the screen and the zoom button keep their clicks. */
 export const EdgeHit = styled.button`
   position: absolute;
   bottom: 0;

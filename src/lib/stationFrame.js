@@ -37,6 +37,35 @@ export function photoAutoplayAllowed(pathname, hidden) {
   return pathname === '/photo'
 }
 
+/**
+ * Invisible bottom-corner pan targets.
+ * Home keeps both corners. A full left pan (the poster boards) keeps the
+ * right corner, and a full right pan (the train) keeps the left corner.
+ * The intro and a wall page get none, so those clicks stay on the page.
+ */
+export function panCornerZones({
+  dimmed = false,
+  pageView = false,
+  pov = 'kiosk',
+  kioskZoom = 'close',
+} = {}) {
+  if (dimmed || pageView) return []
+  if (pov === 'kiosk' && kioskZoom === 'left') return ['right']
+  if (pov === 'kiosk' && (kioskZoom === 'right' || kioskZoom === 'wide')) return ['left']
+  return ['left', 'right']
+}
+
+/**
+ * Zoom a corner tap applies. Home corners look that way. On a panned
+ * shot the remaining corner takes the same destination as the pan arrow
+ * on that side (left's right arrow goes right, right's left arrow goes left).
+ */
+export function panCornerZoom(kioskZoom, side) {
+  if (kioskZoom === 'left' && side === 'right') return 'right'
+  if ((kioskZoom === 'right' || kioskZoom === 'wide') && side === 'left') return 'left'
+  return side
+}
+
 /** Next featured photo, walking the strip so the yellow frame can follow. */
 export function nextPhotoIndex(current, indexes) {
   if (!indexes || indexes.length === 0) return 0

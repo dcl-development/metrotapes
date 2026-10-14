@@ -17,7 +17,7 @@ import { frameloopFor, idlePumpMs } from '../lib/renderLoop'
 import { getWallFace, layoutWallFace, setWallFace } from '../lib/wallSize'
 import { hasWebGL } from '../lib/webglSupport'
 import { pickKioskDestination } from '../lib/kioskHit'
-import { preserveDrawingBuffer } from '../lib/stationFrame'
+import { panCornerZones, panCornerZoom, preserveDrawingBuffer } from '../lib/stationFrame'
 import { useGfx } from '../lib/useGfx'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useStationMaps } from '../station/textures'
@@ -316,6 +316,17 @@ export default function StationScene({
     setKioskZoom(dir)
     if (pov !== 'kiosk') navigate('/')
   }, [dimmed, pov, kioskZoom, navigate])
+
+  const onEdgePan = useCallback((side, e) => {
+    e.stopPropagation()
+    // Already panned: lookAside ignores the click. Take the arrow's zoom.
+    if (pov === 'kiosk' && isLandscapeZoom(kioskZoom)) {
+      setCamSettled(false)
+      setKioskZoom(panCornerZoom(kioskZoom, side))
+      return
+    }
+    lookAside(e, side)
+  }, [pov, kioskZoom, lookAside])
 
   const handleArrive = useCallback((next) => {
     onArrive?.(next)
@@ -671,22 +682,16 @@ export default function StationScene({
             </OverlayCam>
           </Overlay>
         ) : null}
-        {!dimmed && !pageView && !(pov === 'kiosk' && isLandscapeZoom(kioskZoom)) ? (
-          <>
-            <EdgeHit
-              type="button"
-              $side="left"
-              aria-label="Look left"
-              onClick={(e) => lookAside(e, 'left')}
-            />
-            <EdgeHit
-              type="button"
-              $side="right"
-              aria-label="Look right"
-              onClick={(e) => lookAside(e, 'right')}
-            />
-          </>
-        ) : null}
+        {panCornerZones({ dimmed, pageView, pov, kioskZoom }).map((side) => (
+          <EdgeHit
+            key={side}
+            type="button"
+            $side={side}
+            data-pan-edge={side}
+            aria-label={side === 'left' ? 'Look left' : 'Look right'}
+            onClick={(e) => onEdgePan(side, e)}
+          />
+        ))}
       </SceneWrap>
       {pageView || !settings.grain ? null : (
         <StationFilm

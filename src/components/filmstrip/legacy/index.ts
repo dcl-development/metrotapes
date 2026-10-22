@@ -1,0 +1,5 @@
+export { default, type FilmstripImage, type FilmstripProps } from './Filmstrip'
+export { default as Filmstrip } from './Filmstrip'
+export { default as FilmStrip3D, prefersSmallImages, aspectOf, DEFAULT_GRAIN_SRC } from './FilmStrip3D'
+export type { FilmStripItem, FilmStrip3DProps, FilmStripMode } from './FilmStrip3D'
+export { default as FilmStripFlat } from './FilmStripFlat'

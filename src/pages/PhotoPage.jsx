@@ -20,6 +20,14 @@ const RESUME_MS = 3000
 const GAP = 7
 const COPIES = 5 // odd — we sit on the middle copy for infinite wrap
 
+/** Phone landscape / short wide viewports: shrink frame + strip band together. */
+const SHORT_LANDSCAPE = `
+  @media (max-aspect-ratio: 13/10) and (max-height: 520px) {
+    --photo-band: clamp(68px, min(23svh, 19svw), 132px);
+    --photo-stage-cap: calc(100% - var(--photo-band));
+  }
+`
+
 const Panel = styled.div`
   width: 100%;
   height: 100%;
@@ -36,6 +44,8 @@ const Panel = styled.div`
   padding: 0;
   pointer-events: auto;
   font-family: ${font};
+
+  ${SHORT_LANDSCAPE}
 `
 
 const Stage = styled.div`
@@ -54,6 +64,12 @@ const Stage = styled.div`
   position: relative;
   z-index: 2;
   pointer-events: none;
+
+  ${SHORT_LANDSCAPE} {
+    flex: 1 1 auto;
+    max-height: var(--photo-stage-cap, none);
+    padding: 2px 8px 0;
+  }
 `
 
 const Slide = styled.img`
@@ -82,6 +98,11 @@ const CurlBand = styled.div`
   position: relative;
   z-index: 1;
   overflow: hidden;
+
+  ${SHORT_LANDSCAPE} {
+    flex: 0 0 var(--photo-band, clamp(68px, min(23svh, 19svw), 132px));
+    height: var(--photo-band, clamp(68px, min(23svh, 19svw), 132px));
+  }
 `
 
 const StripRail = styled.div`

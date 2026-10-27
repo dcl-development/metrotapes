@@ -1570,14 +1570,15 @@ export default function FilmStrip3D({
     const measureLoop = () => {
       const h = rootH;
       const w = rootW;
+      const shortWideBand = w / Math.max(h, 1) >= 1.3 && h < 120;
       const t0 = LOOP_TILT * (Math.PI / 180);
       const ct = Math.cos(t0),
         st = Math.sin(t0);
       const [c0, c1] = table.core ?? [0, Lp];
       const pts: number[][] = [];
       // one slice past each end: a slice's screen box reaches past the centreline sample
-      const s0 = Math.max(0, c0 - 36);
-      const s1 = Math.min(Lp, c1 + 28);
+      const s0 = shortWideBand ? 0 : Math.max(0, c0 - 36);
+      const s1 = shortWideBand ? Lp : Math.min(Lp, c1 + 28);
       for (let s = s0; s <= s1; s += 14) {
         sample(s + pad, pA, dA);
         for (const e of [-HALF_H, HALF_H]) {
@@ -1637,10 +1638,11 @@ export default function FilmStrip3D({
       const fitted = bounds();
       // Fill more of the width on phones so the ribbon reaches the left edge.
       const compactFit = w < 768 || h < 560;
-      const shortBand = h < 100;
-      const fillX = compactFit ? (shortBand ? 0.86 : 0.92) : 0.7;
-      const fillY = compactFit ? (shortBand ? 0.62 : 0.78) : 0.72;
-      sc = Math.min((w * fillX) / (fitted.x1 - fitted.x0), (h * fillY) / (fitted.y1 - fitted.y0));
+      const fillX = compactFit ? 0.92 : 0.7;
+      const fillY = compactFit ? 0.78 : 0.72;
+      const sx = (w * fillX) / (fitted.x1 - fitted.x0);
+      const sy = (h * fillY) / (fitted.y1 - fitted.y0);
+      sc = shortWideBand ? sx : Math.min(sx, sy);
       S = clamp(sc, 0.2, 2.2);
       shX = px;
       shY = py;

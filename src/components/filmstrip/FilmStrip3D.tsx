@@ -345,7 +345,7 @@ function loopSegs(c: LoopCfg) {
   // at the height-fit scale (~0.3). The right run is already longer.
   const wide = Math.max(0, c.viewW);
   const extraCompact = k > 0 ? Math.max(0, wide - 420) : 0;
-  const extraL = k > 0 ? 0 : Math.max(0, wide - 1100);
+  const extraL = k > 0 ? extraCompact * 1.9 : Math.max(0, wide - 1100);
   const extraR = k > 0 ? 0 : Math.max(0, wide - 1500);
   const bleedL = 1100 - 750 * k + extraL * 1.9;
   const bleedR = 2400 - 1950 * k + extraCompact * 3.4 + extraR * 2.2;
@@ -1631,19 +1631,29 @@ export default function FilmStrip3D({
         const b = bounds();
         const midX = (b.x0 + b.x1) / 2;
         const midY = (b.y0 + b.y1) / 2;
-        px -= midX / ((b.kL + b.kR) / 2 || 1);
+        if (!shortWideBand) px -= midX / ((b.kL + b.kR) / 2 || 1);
         py -= midY / ((b.kT + b.kB) / 2 || 1);
-        if (Math.abs(midX) < 0.5 && Math.abs(midY) < 0.5) break;
+        if (shortWideBand) {
+          if (Math.abs(midY) < 0.5) break;
+        } else if (Math.abs(midX) < 0.5 && Math.abs(midY) < 0.5) break;
       }
       const fitted = bounds();
       // Fill more of the width on phones so the ribbon reaches the left edge.
       const compactFit = w < 768 || h < 560;
-      const fillX = compactFit ? 0.92 : 0.7;
+      const fillX = shortWideBand ? 0.99 : compactFit ? 0.92 : 0.7;
       const fillY = compactFit ? 0.78 : 0.72;
       const sx = (w * fillX) / (fitted.x1 - fitted.x0);
       const sy = (h * fillY) / (fitted.y1 - fitted.y0);
       sc = shortWideBand ? sx : Math.min(sx, sy);
       S = clamp(sc, 0.2, 2.2);
+      if (shortWideBand) {
+        const inset = w * (1 - fillX) * 0.5;
+        const wantX0 = -w / 2 + inset;
+        let b = bounds();
+        px -= (b.x0 * S - wantX0) / (b.kL || 1);
+        b = bounds();
+        px -= (b.x0 * S - wantX0) / (b.kL || 1);
+      }
       shX = px;
       shY = py;
       root.style.perspective = Math.round(D * S) + 'px';

@@ -1637,8 +1637,9 @@ export default function FilmStrip3D({
       const fitted = bounds();
       // Fill more of the width on phones so the ribbon reaches the left edge.
       const compactFit = w < 768 || h < 560;
-      const fillX = compactFit ? 0.92 : 0.7;
-      const fillY = compactFit ? 0.78 : 0.72;
+      const shortBand = h < 100;
+      const fillX = compactFit ? (shortBand ? 0.86 : 0.92) : 0.7;
+      const fillY = compactFit ? (shortBand ? 0.62 : 0.78) : 0.72;
       sc = Math.min((w * fillX) / (fitted.x1 - fitted.x0), (h * fillY) / (fitted.y1 - fitted.y0));
       S = clamp(sc, 0.2, 2.2);
       shX = px;

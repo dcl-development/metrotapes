@@ -104,12 +104,24 @@ export default defineConfig(({ mode }) => {
       outDir: 'dist',
       assetsDir: 'assets',
       sourcemap: false,
-      rollupOptions: {
+      rolldownOptions: {
         output: {
-          manualChunks(id) {
-            if (id.includes('node_modules/postprocessing/')) return 'postprocessing'
-            if (id.includes('node_modules/three/')) return 'three'
-            return undefined
+          codeSplitting: {
+            includeDependenciesRecursively: false,
+            groups: [
+              {
+                name: 'postprocessing',
+                test: /node_modules[\\/]postprocessing[\\/]/,
+                priority: 20,
+                includeDependenciesRecursively: false,
+              },
+              {
+                name: 'three',
+                test: /node_modules[\\/]three[\\/]/,
+                priority: 10,
+                includeDependenciesRecursively: false,
+              },
+            ],
           },
         },
       },

@@ -2,6 +2,10 @@
 
 Low-context jump-in for new agents. Read this, then open only the files your task needs. Prefer small diffs. Human taste: Helvetica, functional first, funk via the station scene — not extra libraries.
 
+## Dev framework
+
+This repo follows Jake's dev framework: [jakedcl/dev-framework](https://github.com/jakedcl/dev-framework) (start at its `AGENTS.md`). The framework is the source of truth; if anything in this file conflicts with it, the framework wins.
+
 ## What this is
 
 Portfolio for **Metrotapes**. Live: [metrotapes.com](https://metrotapes.com). The site is an interactive subway station: **navigation is camera shots inside one 3D scene**, not separate page layouts. Blog is a normal HTML page. Content comes from Sanity.

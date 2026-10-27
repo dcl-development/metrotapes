@@ -8,7 +8,7 @@ import { mountPhotoStrip, prefetchImages, preloadImage, scheduleIdleWarm, showFu
 import { useGfx } from '../lib/useGfx'
 
 const FilmStrip3D = lazy(() => import('../components/filmstrip/FilmStrip3D'))
-import styled from 'styled-components'
+import styled, { css } from 'styled-components'
 import ImageModal from '../components/ImageModal'
 import OrnatePhotoFrame from '../components/OrnatePhotoFrame'
 import FrostNote from '../components/FrostNote'
@@ -20,11 +20,29 @@ const RESUME_MS = 3000
 const GAP = 7
 const COPIES = 5 // odd — we sit on the middle copy for infinite wrap
 
-/** Phone landscape / short wide viewports: shrink frame + strip band together. */
-const SHORT_LANDSCAPE = `
-  @media (max-aspect-ratio: 13/10) and (max-height: 520px) {
-    --photo-band: clamp(68px, min(23svh, 19svw), 132px);
+/**
+ * Short wide panel (phone landscape on the CSS3D wall). Use container queries
+ * on the panel — not viewport media — because the wall lays out at panelW×panelH.
+ */
+const shortWidePanel = css`
+  @container photo-panel (min-aspect-ratio: 13/10) and (max-height: 520px) {
+    --photo-band: clamp(68px, min(23cqh, 19cqw), 132px);
     --photo-stage-cap: calc(100% - var(--photo-band));
+  }
+`
+
+const shortWideStage = css`
+  @container photo-panel (min-aspect-ratio: 13/10) and (max-height: 520px) {
+    flex: 1 1 auto;
+    max-height: var(--photo-stage-cap, none);
+    padding: 2px 8px 0;
+  }
+`
+
+const shortWideCurl = css`
+  @container photo-panel (min-aspect-ratio: 13/10) and (max-height: 520px) {
+    flex: 0 0 var(--photo-band, clamp(68px, min(23cqh, 19cqw), 132px));
+    height: var(--photo-band, clamp(68px, min(23cqh, 19cqw), 132px));
   }
 `
 
@@ -35,6 +53,8 @@ const Panel = styled.div`
   flex-direction: column;
   overflow: hidden;
   overscroll-behavior: contain;
+  container-type: size;
+  container-name: photo-panel;
   /* Keep backdrop-filter (loading note) inside this page. Otherwise it
      samples the WebGL canvas and the lower half of the station tears. */
   isolation: isolate;
@@ -45,7 +65,7 @@ const Panel = styled.div`
   pointer-events: auto;
   font-family: ${font};
 
-  ${SHORT_LANDSCAPE}
+  ${shortWidePanel}
 `
 
 const Stage = styled.div`
@@ -65,11 +85,7 @@ const Stage = styled.div`
   z-index: 2;
   pointer-events: none;
 
-  ${SHORT_LANDSCAPE} {
-    flex: 1 1 auto;
-    max-height: var(--photo-stage-cap, none);
-    padding: 2px 8px 0;
-  }
+  ${shortWideStage}
 `
 
 const Slide = styled.img`
@@ -99,10 +115,7 @@ const CurlBand = styled.div`
   z-index: 1;
   overflow: hidden;
 
-  ${SHORT_LANDSCAPE} {
-    flex: 0 0 var(--photo-band, clamp(68px, min(23svh, 19svw), 132px));
-    height: var(--photo-band, clamp(68px, min(23svh, 19svw), 132px));
-  }
+  ${shortWideCurl}
 `
 
 const StripRail = styled.div`

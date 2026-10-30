@@ -38,7 +38,7 @@ Portfolio for **Metrotapes**. Live: [metrotapes.com](https://metrotapes.com). Th
 - **Sanity** owns photos, about copy, blog posts, video playlist id, home bits. Studio app: `studio/` (served at `/studio`), schemas in `studio/schemaTypes/`.
 - **Code** owns station geometry, camera shots, boot/kiosk UX, gfx tiers, theme tokens.
 - **YouTube** owns the video list. `/api/videos` falls back to playlist RSS if `YOUTUBE_API_KEY` is unset.
-- Don't hardcode CMS copy when a schema exists. Never put write-capable Sanity tokens in `VITE_*` (they ship to the browser).
+- Don't hardcode CMS copy when a schema exists. No secrets in `VITE_*` and don't read `import.meta.env` as a whole object in browser code (Vite inlines every `VITE_*` var). The build fails if a secret value lands in the bundle.
 
 ## Commands
 
@@ -49,7 +49,7 @@ npm run build        # site + studio;  npm run build:site = site only
 npm run lint && npm test
 ```
 
-Optional `.env.local`: `VITE_SANITY_PROJECT_ID`, `VITE_SANITY_DATASET`, `YOUTUBE_API_KEY`. Defaults in `src/lib/sanity.js` point at production Sanity.
+Optional `.env.local` (see `.env.example`): `YOUTUBE_API_KEY`, `SANITY_PROJECT_ID`, `SANITY_DATASET`, all server-only. The dataset is public, so no Sanity token.
 
 ## Rules
 

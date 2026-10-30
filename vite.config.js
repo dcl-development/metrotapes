@@ -6,6 +6,7 @@ import { runAbout, runPhotos, runPosts } from './server/sanityRoutes.js'
 import { allowVideosRequest } from './server/videosGuard.js'
 import { getPlaylistConfig, loadPlaylistVideos } from './server/youtubePlaylist.js'
 import { applyRouteMeta } from './src/lib/routeMeta.js'
+import { secretGuardPlugin } from './scripts/secretGuard.js'
 
 const ROUTE_HTML = ['/photo', '/video', '/about', '/blog']
 
@@ -94,7 +95,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
 
   return {
-    plugins: [react(), videosApiPlugin(env), routeHtmlPlugin()],
+    plugins: [react(), videosApiPlugin(env), routeHtmlPlugin(), secretGuardPlugin(env)],
     base: '/',
     server: {
       port: 5173,

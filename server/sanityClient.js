@@ -6,8 +6,8 @@ export const SANITY_API_VERSION = '2024-01-30'
 
 export function readSanityConfig(env = process.env) {
   return {
-    projectId: env.SANITY_PROJECT_ID || env.VITE_SANITY_PROJECT_ID || SANITY_PROJECT_ID,
-    dataset: env.SANITY_DATASET || env.VITE_SANITY_DATASET || SANITY_DATASET,
+    projectId: env.SANITY_PROJECT_ID || SANITY_PROJECT_ID,
+    dataset: env.SANITY_DATASET || SANITY_DATASET,
     apiVersion: SANITY_API_VERSION,
   }
 }

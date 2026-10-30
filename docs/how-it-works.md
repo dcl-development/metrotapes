@@ -43,7 +43,7 @@ The studio is a separate project in `studio/`. `npm run build` builds the site, 
 `/api/videos` exists so the YouTube key and the playlist id never reach the browser. The logic is in `server/youtubePlaylist.js`. `api/videos.js` wraps it for Vercel, and the dev server plugin serves the same function.
 
 1. It reads `playlistId` from the `videos` document in Sanity, and strips any `?si=` share junk that got pasted into the Studio field.
-2. If `YOUTUBE_API_KEY` (or `VITE_YOUTUBE_API_KEY`) is set, it pages through the YouTube Data API `playlistItems` (up to 10 pages of 50), then batch-fetches durations. Durations that fail to load are left off.
+2. If `YOUTUBE_API_KEY` is set, it pages through the YouTube Data API `playlistItems` (up to 10 pages of 50), then batch-fetches durations. Durations that fail to load are left off.
 3. If there's no key, it reads the playlist's public RSS feed instead. That feed has titles and ids but no durations.
 4. Deleted and private videos are skipped.
 5. An empty playlist id or an empty playlist returns 200 with `empty: true`. An upstream failure returns 502. Successful non-empty responses get `s-maxage=300, stale-while-revalidate=86400`.
@@ -74,16 +74,14 @@ All optional. The Sanity defaults point at the production project.
 
 | Variable | Used for |
 |---|---|
-| `VITE_SANITY_PROJECT_ID`, `VITE_SANITY_DATASET` | Image URLs in the browser, and the API when the server names below are unset |
-| `SANITY_PROJECT_ID`, `SANITY_DATASET` | Serverless functions. These win over the `VITE_` names |
-| `YOUTUBE_API_KEY` (or `VITE_YOUTUBE_API_KEY`) | YouTube Data API for the playlist. Without it the RSS feed is used |
+| `SANITY_PROJECT_ID`, `SANITY_DATASET` | Serverless functions. Default to the production project |
+| `YOUTUBE_API_KEY` | YouTube Data API for the playlist. Without it the RSS feed is used |
 
-Do not put a write-capable Sanity token in a `VITE_` variable. It would ship in the JS bundle. The public site does not need a token.
+All of these are server-only. Browser code doesn't read `import.meta.env`: reading it as a whole object makes Vite inline every `VITE_*` variable into the bundle, which is how a Sanity token and YouTube key once shipped to the browser. The dataset is public, so the site needs no Sanity token. `scripts/secretGuard.js` fails the build if a secret-looking env value appears in the bundle.
 
 ## Limits worth knowing
 
 - **Without an API key the video list has no durations.** The RSS feed also carries no paging, so very long playlists are not guaranteed to show in full.
-- **The API key is read from `VITE_YOUTUBE_API_KEY` too.** Only the server code reads it, but a `VITE_` name is the kind Vite exposes to client code, so prefer `YOUTUBE_API_KEY`.
-- **The studio config has the project id and dataset written in** (`studio/sanity.config.js`, `studio/sanity.cli.cjs`), as does the API fallback, so pointing at another project means changing those too.
+- **The studio config has the project id and dataset written in** (`studio/sanity.config.js`, `studio/sanity.cli.cjs`, `src/lib/sanity.js` for image URLs), as does the API fallback, so pointing at another project means changing those too.
 - **The home page does not warm wall images.** Photos, about, and videos load on their own routes.
-- **A publish can take about a minute to show up** on a warm CDN cache (`s-maxage=60` for Sanity content, `s-maxage=300` for a non-empty video list).
+- **A publish can take about a minute to show up** on a warm CDN cache (`s-maxage=60` for Sanity content, `s-maxage=3600` for a non-empty video list).

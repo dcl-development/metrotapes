@@ -33,13 +33,14 @@ npm install --prefix studio
 npm run dev:studio
 ```
 
-Optional environment variables (put them in `.env.local`):
+Optional environment variables (copy `.env.example` to `.env.local`). They're read only by the `/api` functions, never by browser code:
 
-- `VITE_SANITY_PROJECT_ID` and `VITE_SANITY_DATASET` to point image URLs and the dev server at a different Sanity project. The defaults are the production ones (`l3itmzli` / `production`).
-- `SANITY_PROJECT_ID` and `SANITY_DATASET` override those for the serverless functions when you want the server on a different project than the image URLs. On Vercel, either pair works: the functions read `SANITY_*` first, then `VITE_*`.
 - `YOUTUBE_API_KEY` for the YouTube Data API. Without it the video list uses the playlist RSS feed.
+- `SANITY_PROJECT_ID` and `SANITY_DATASET` to point the API at a different Sanity project. The defaults are the production ones (`l3itmzli` / `production`). The dataset is public, so no Sanity token is needed.
 
-Those content routes send `Cache-Control: s-maxage=60, stale-while-revalidate=86400`, so the Vercel CDN can answer immediately and refresh in the background. A publish can take up to a minute to show up on a warm cache.
+Don't add `VITE_` secrets. Anything with that prefix can end up in the public JS bundle, and the build fails if a secret-looking env value (name containing TOKEN, KEY, SECRET or PASSWORD) shows up in it.
+
+The content routes send `Cache-Control: s-maxage=60, stale-while-revalidate=86400` and `/api/videos` sends `s-maxage=3600, stale-while-revalidate=86400`, so the Vercel CDN answers most requests and refreshes in the background. A Sanity publish can take up to a minute to show up, and a playlist change up to an hour.
 
 ## Scripts
 

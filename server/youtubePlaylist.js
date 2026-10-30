@@ -3,11 +3,17 @@ import { createClient } from '@sanity/client'
 const SANITY_PROJECT_ID = 'l3itmzli'
 const SANITY_DATASET = 'production'
 
+/**
+ * CDN cache for a non-empty list: an hour fresh, then a day stale while it
+ * refreshes in the background. Keeps YouTube API quota and function runs near zero.
+ */
+export const VIDEOS_CACHE_CONTROL = 's-maxage=3600, stale-while-revalidate=86400'
+
 export function getPlaylistConfig(env = process.env) {
   return {
-    youtubeApiKey: env.YOUTUBE_API_KEY || env.VITE_YOUTUBE_API_KEY || '',
-    sanityProjectId: env.SANITY_PROJECT_ID || env.VITE_SANITY_PROJECT_ID || SANITY_PROJECT_ID,
-    sanityDataset: env.SANITY_DATASET || env.VITE_SANITY_DATASET || SANITY_DATASET,
+    youtubeApiKey: env.YOUTUBE_API_KEY || '',
+    sanityProjectId: env.SANITY_PROJECT_ID || SANITY_PROJECT_ID,
+    sanityDataset: env.SANITY_DATASET || SANITY_DATASET,
   }
 }
 

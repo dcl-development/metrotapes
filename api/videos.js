@@ -1,5 +1,5 @@
 import { allowVideosRequest } from '../server/videosGuard.js'
-import { getPlaylistConfig, loadPlaylistVideos } from '../server/youtubePlaylist.js'
+import { VIDEOS_CACHE_CONTROL, getPlaylistConfig, loadPlaylistVideos } from '../server/youtubePlaylist.js'
 
 export default async function handler(req, res) {
   const guard = allowVideosRequest(req)
@@ -13,7 +13,7 @@ export default async function handler(req, res) {
     const result = await loadPlaylistVideos(getPlaylistConfig(process.env))
 
     if (result.status === 200 && result.body.videos?.length) {
-      res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=86400')
+      res.setHeader('Cache-Control', VIDEOS_CACHE_CONTROL)
     }
 
     return res.status(result.status).json(result.body)

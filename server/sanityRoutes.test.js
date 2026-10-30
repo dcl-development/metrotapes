@@ -16,24 +16,22 @@ describe('readSanityConfig', () => {
     })
   })
 
-  it('prefers SANITY_* over VITE_*', () => {
+  it('reads the server-only SANITY_* names', () => {
     const config = readSanityConfig({
       SANITY_PROJECT_ID: 'serverid',
-      VITE_SANITY_PROJECT_ID: 'viteid',
       SANITY_DATASET: 'staging',
-      VITE_SANITY_DATASET: 'vite-data',
     })
     assert.equal(config.projectId, 'serverid')
     assert.equal(config.dataset, 'staging')
   })
 
-  it('reads VITE_* when the server names are unset', () => {
+  it('ignores VITE_* names', () => {
     const config = readSanityConfig({
       VITE_SANITY_PROJECT_ID: 'viteid',
       VITE_SANITY_DATASET: 'preview',
     })
-    assert.equal(config.projectId, 'viteid')
-    assert.equal(config.dataset, 'preview')
+    assert.equal(config.projectId, 'l3itmzli')
+    assert.equal(config.dataset, 'production')
   })
 })
 

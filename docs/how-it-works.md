@@ -77,7 +77,7 @@ All optional. The Sanity defaults point at the production project.
 | `SANITY_PROJECT_ID`, `SANITY_DATASET` | Serverless functions. Default to the production project |
 | `YOUTUBE_API_KEY` | YouTube Data API for the playlist. Without it the RSS feed is used |
 
-All of these are server-only. Browser code doesn't read `import.meta.env`: reading it as a whole object makes Vite inline every `VITE_*` variable into the bundle, which is how a Sanity token and YouTube key once shipped to the browser. The dataset is public, so the site needs no Sanity token. `scripts/secretGuard.js` fails the build if a secret-looking env value appears in the bundle.
+All of these are server-only. API keys are used only inside the `/api` functions, and browser code reads no env vars. The dataset is public, so the site needs no Sanity token. `scripts/secretGuard.js` fails the build if a secret value ends up in the bundle.
 
 ## Limits worth knowing
 

@@ -38,7 +38,7 @@ Portfolio for **Metrotapes**. Live: [metrotapes.com](https://metrotapes.com). Th
 - **Sanity** owns photos, about copy, blog posts, video playlist id, home bits. Studio app: `studio/` (served at `/studio`), schemas in `studio/schemaTypes/`.
 - **Code** owns station geometry, camera shots, boot/kiosk UX, gfx tiers, theme tokens.
 - **YouTube** owns the video list. `/api/videos` falls back to playlist RSS if `YOUTUBE_API_KEY` is unset.
-- Don't hardcode CMS copy when a schema exists. No secrets in `VITE_*` and don't read `import.meta.env` as a whole object in browser code (Vite inlines every `VITE_*` var). The build fails if a secret value lands in the bundle.
+- Don't hardcode CMS copy when a schema exists. Secrets stay server-side: API keys are used only in `/api` functions, browser code reads no env vars, and nothing secret goes in `VITE_*`. The build fails if a secret value ends up in the bundle.
 
 ## Commands
 

@@ -10,7 +10,7 @@ This repo follows Jake's dev framework: [jakedcl/dev-framework](https://github.c
 
 Portfolio for **Metrotapes**. Live: [metrotapes.com](https://metrotapes.com). The site is an interactive subway station: **navigation is camera shots inside one 3D scene**, not separate page layouts. Blog is a normal HTML page. Content comes from Sanity.
 
-**Stack:** Vite + React 18 + React Router + styled-components + React Three Fiber / Three.js + Sanity + Vercel. **Not Next.js.** No Tailwind.
+**Stack:** Vite 8 + React 19 + React Router + styled-components + React Three Fiber / Three.js + Sanity + Vercel. **Not Next.js.** No Tailwind.
 
 ## Map
 

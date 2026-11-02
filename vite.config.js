@@ -29,6 +29,13 @@ function routeHtmlPlugin() {
         fs.mkdirSync(dir, { recursive: true })
         fs.writeFileSync(path.join(dir, 'index.html'), applyRouteMeta(home, route))
       }
+      // Unknown paths get Vercel's 404.html with a real 404 status. It is the
+      // same app shell, so the router still sends visitors home as before.
+      const notFound = applyRouteMeta(home, '/').replace(
+        /<meta name="robots" content="[^"]*"\s*\/?>/,
+        '<meta name="robots" content="noindex, nofollow" />',
+      )
+      fs.writeFileSync(path.resolve('dist/404.html'), notFound)
     },
   }
 }

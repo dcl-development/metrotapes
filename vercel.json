@@ -22,10 +22,6 @@
     {
       "source": "/studio/:path*",
       "destination": "/studio/index.html"
-    },
-    {
-      "source": "/((?!api/|assets/|studio(?:/|$)|robots\\.txt|sitemap\\.xml).*)",
-      "destination": "/index.html"
     }
   ]
 }

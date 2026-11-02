@@ -15,7 +15,7 @@ Live at [metrotapes.com](https://metrotapes.com).
 
 ## Stack
 
-Vite, React 18, React Router, Three.js with React Three Fiber, styled-components, Sanity, deployed on Vercel.
+Vite, React 19, React Router, Three.js with React Three Fiber, styled-components, Sanity, deployed on Vercel.
 
 ## Running it locally
 

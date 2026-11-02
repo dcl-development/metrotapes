@@ -21,7 +21,7 @@
     "@portabletext/react": "^8.0.1",
     "@react-three/fiber": "^9.8.2",
     "@sanity/client": "^6.27.2",
-    "@sanity/image-url": "^1.1.0",
+    "@sanity/image-url": "^2.1.1",
     "postprocessing": "^6.39.4",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",

@@ -7,8 +7,7 @@
   "scripts": {
     "dev": "npx sanity dev",
     "start": "npx sanity start",
-    "build": "SANITY_STUDIO_BASEPATH=/studio npx sanity build ../dist/studio -y",
-    "deploy": "npx sanity deploy"
+    "build": "SANITY_STUDIO_BASEPATH=/studio npx sanity build ../dist/studio -y"
   },
   "dependencies": {
     "@sanity/vision": "^3.99.0",

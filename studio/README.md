@@ -1,5 +1,4 @@
-# Local Studio — same project/dataset as https://metrotapes.sanity.studio
-# Production URL after deploy: https://metrotapes.com/studio
+# Studio embedded in the site at https://metrotapes.com/studio (the only Studio; no hosted *.sanity.studio)
 #
 # Content lives in Sanity Content Lake (project l3itmzli / production).
 # Hosting Studio on your domain does NOT migrate or delete data.

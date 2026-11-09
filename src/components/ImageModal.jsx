@@ -161,14 +161,14 @@ export default function ImageModal({ isOpen, onClose, currentImage, mediaItems }
         <Overlay $isOpen={isOpen} onClick={handleOverlayClick}>
             <ModalContent>
                 <CloseButton type="button" onClick={handleCloseClick} aria-label="Close photo">
-                    <FontAwesomeIcon icon={faTimes} />
+                    <FontAwesomeIcon icon={faTimes} className="fa-width-auto" />
                 </CloseButton>
                 <NavButton type="button" $direction="prev" onClick={handlePrevious} aria-label="Previous photo">
-                    <FontAwesomeIcon icon={faChevronLeft} />
+                    <FontAwesomeIcon icon={faChevronLeft} className="fa-width-auto" />
                 </NavButton>
                 <ModalImage src={imageUrl} alt={imageAlt(currentImage, 'Photograph by Ronnie Foreman')} />
                 <NavButton type="button" $direction="next" onClick={handleNext} aria-label="Next photo">
-                    <FontAwesomeIcon icon={faChevronRight} />
+                    <FontAwesomeIcon icon={faChevronRight} className="fa-width-auto" />
                 </NavButton>
             </ModalContent>
         </Overlay>

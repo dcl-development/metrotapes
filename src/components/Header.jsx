@@ -302,19 +302,19 @@ export default function Header() {
     <>
       <NavItem to="/photo" aria-label="Photo" onClick={handleNavClick('/photo')}>
         <Circle color={route.photo}>
-          <FontAwesomeIcon icon={faCamera} />
+          <FontAwesomeIcon icon={faCamera} className="fa-width-auto" />
         </Circle>
         <NavText>photo</NavText>
       </NavItem>
       <NavItem to="/video" aria-label="Video" onClick={handleNavClick('/video')}>
         <Circle color={route.video}>
-          <FontAwesomeIcon icon={faVideo} />
+          <FontAwesomeIcon icon={faVideo} className="fa-width-auto" />
         </Circle>
         <NavText>video</NavText>
       </NavItem>
       <NavItem to="/about" aria-label="About" onClick={handleNavClick('/about')}>
         <Circle color={route.about}>
-          <FontAwesomeIcon icon={faBook} />
+          <FontAwesomeIcon icon={faBook} className="fa-width-auto" />
         </Circle>
         <NavText>about</NavText>
       </NavItem>
@@ -334,7 +334,7 @@ export default function Header() {
                 aria-expanded={isOpen}
                 aria-controls="site-nav"
               >
-                <FontAwesomeIcon icon={faBars} size="lg" />
+                <FontAwesomeIcon icon={faBars} className="fa-width-auto" size="lg" />
               </MenuButton>
             )}
             <TitleWrapper type="button" onClick={handleTitleClick} aria-label="Home">

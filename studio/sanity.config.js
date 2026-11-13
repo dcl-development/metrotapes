@@ -12,6 +12,8 @@ export default defineConfig({
   projectId: 'l3itmzli',
   dataset: 'production',
 
+  releases: {enabled: false},
+
   plugins: [structureTool(), visionTool()],
 
   schema: {

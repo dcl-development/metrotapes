@@ -11,8 +11,4 @@ updates:
         update-types: ["minor", "patch"]
     ignore:
       - dependency-name: "@types/node"
-        versions: [">=23"]
-      - dependency-name: "typescript"
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "eslint"
-        update-types: ["version-update:semver-major"]
+        versions: [">=25"]

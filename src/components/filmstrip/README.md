@@ -12,8 +12,3 @@ This folder holds the **live** photo-wall film strip used on `/photo` and shared
 | `index.ts` | Re-exports `FilmStrip3D` and types |
 | `package.json` | Peer-deps metadata for copying the portable package elsewhere |
 
-## Full jakedcl.com package (wrapper + flat fallback)
-
-The original self-contained export — `Filmstrip.tsx`, `FilmStripFlat`, lightbox shell, example page, and the long-form docs — is preserved verbatim under **`legacy/`**. See `legacy/README.md` for install notes, props, and performance rules. Grain imports in `legacy/` point at `../grain.ts` and the site `public/film-scratches-grain.webp`.
-
-Nothing in the app imports `legacy/` today; it is reference-only and excluded from ESLint.

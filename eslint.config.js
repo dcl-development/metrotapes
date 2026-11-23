@@ -5,7 +5,7 @@ import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 
 export default [
-  { ignores: ['dist', 'src/components/filmstrip/legacy/**'] },
+  { ignores: ['dist'] },
   {
     files: ['api/**/*.js', 'server/**/*.js', 'scripts/**/*.js', 'vite.config.js'],
     languageOptions: {

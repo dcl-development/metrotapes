@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { resetContentGuard } from './contentGuard.js'
 import { readSanityConfig } from './sanityClient.js'
-import { ABOUT_QUERY, PHOTOS_QUERY, POSTS_QUERY, loadAbout, loadPhotos, loadPosts } from './sanityContent.js'
+import { ABOUT_QUERY, PHOTOS_QUERY, loadAbout, loadPhotos } from './sanityContent.js'
 import { CONTENT_CACHE_CONTROL, runContentRequest } from './sanityRoutes.js'
 
 const photo = { asset: { _ref: 'image-abc-10x10-jpg' }, alt: 'Platform' }
@@ -42,24 +42,17 @@ describe('content loaders', () => {
     assert.match(PHOTOS_QUERY, /"height": asset->metadata\.dimensions\.height/)
     assert.match(ABOUT_QUERY, /photo1\{[^}]*"alt": coalesce\(alt, asset->altText\)/)
     assert.match(ABOUT_QUERY, /"width": asset->metadata\.dimensions\.width/)
-    assert.match(POSTS_QUERY, /\*\[_type == "post"\] \| order\(publishedAt desc\)/)
-    assert.match(POSTS_QUERY, /instagramPost/)
   })
 
-  it('returns photo and post arrays, and a null about doc', async () => {
+  it('returns photo arrays and a null about doc', async () => {
     const fetchQuery = async (_config, query) => {
       if (query === PHOTOS_QUERY) return null
       if (query === ABOUT_QUERY) return null
-      if (query === POSTS_QUERY) return [{ title: 'Note' }]
       throw new Error(`unexpected query ${query}`)
     }
     const config = { projectId: 'l3itmzli', dataset: 'production' }
     assert.deepEqual(await loadPhotos(config, { fetchQuery }), { status: 200, body: { photos: [] } })
     assert.deepEqual(await loadAbout(config, { fetchQuery }), { status: 200, body: { about: null } })
-    assert.deepEqual(await loadPosts(config, { fetchQuery }), {
-      status: 200,
-      body: { posts: [{ title: 'Note' }] },
-    })
   })
 
   it('passes a photo document through unchanged', async () => {
@@ -101,11 +94,11 @@ describe('content routes', () => {
   it('does not cache a failed read', async () => {
     resetContentGuard()
     const result = await runContentRequest(
-      { method: 'GET', url: '/api/posts' },
+      { method: 'GET', url: '/api/about' },
       async () => {
         throw new Error('sanity down')
       },
-      'posts',
+      'about',
     )
     assert.equal(result.status, 500)
     assert.equal(result.headers['Cache-Control'], undefined)

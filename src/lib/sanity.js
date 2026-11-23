@@ -1,7 +1,7 @@
 import imageUrlBuilder from '@sanity/image-url'
 
 // Builds cdn.sanity.io URLs locally from the asset ref. This does not call the Sanity API.
-// Photos, about, and posts are loaded from /api/photos, /api/about, and /api/posts.
+// Photos and about are loaded from /api/photos and /api/about.
 // Those routes project alt plus width and height so the photo page can size srcsets.
 // Project id and dataset are public (they are part of every image URL), so they are
 // written in here. Don't read `import.meta.env` as a whole object in browser code:

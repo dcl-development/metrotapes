@@ -1,6 +1,6 @@
 import { allowContentRequest } from './contentGuard.js'
 import { readSanityConfig } from './sanityClient.js'
-import { loadAbout, loadPhotos, loadPosts } from './sanityContent.js'
+import { loadAbout, loadPhotos } from './sanityContent.js'
 
 /**
  * Browser cache stays at the Vercel default (s-maxage is for the CDN).
@@ -43,8 +43,4 @@ export function runPhotos(req, env = process.env) {
 
 export function runAbout(req, env = process.env) {
   return runLoaded(req, env, loadAbout, 'about')
-}
-
-export function runPosts(req, env = process.env) {
-  return runLoaded(req, env, loadPosts, 'posts')
 }

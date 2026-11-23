@@ -4,16 +4,15 @@ Metrotapes is a Vite and React app. The home page is a 3D subway station when We
 
 ## Routing and the 3D scene
 
-- `src/App.jsx` has routes for `/`, `/photo`, `/video`, `/about`, and `/blog`. Anything else redirects to `/`.
-- `/blog` is a normal scrolling page and the station is not mounted.
+- `src/App.jsx` has routes for `/`, `/photo`, `/video`, and `/about`. Anything else redirects to `/`.
 - Photo, video, and about are mounted on the station walls for the whole visit, including the home view. `pageMount` in `src/lib/pageMount.js` says where a route's page lives:
-  - `document` — blog, and every route when the station is off (no WebGL, or a lost context).
+  - `document` — every route when the station is off (no WebGL, or a lost context).
   - `hidden` — 3D home. The kiosk is the page.
   - `station` — a 3D wall route. The same page component is already on that board.
 - `SHOT` in `App.jsx` maps the path to a camera shot (`kiosk`, `photo`, `video`, `about`). `StationScene.jsx` flies the camera there. The wall HTML becomes interactive once the camera reports it has arrived (`onArrive` sets `pageReady`).
 - The boot screen only shows on a first visit to `/`, and again when the figure button in the header restarts the visit. Visiting a wall page directly, or having reduced motion turned on, skips the intro and starts already in the station. A timeout in `App` clears the boot screen if the canvas never becomes ready.
 - Flat Photo, Video, About, and Home pages render only when WebGL is unavailable or the context is lost. There is no control to choose that view.
-- Each route has its own title, description, canonical, and social tags in `src/lib/routeMeta.js`. The production build writes `dist/photo/index.html`, `dist/video/index.html`, `dist/about/index.html`, and `dist/blog/index.html` from that table. After navigation, the client hook applies the same tags.
+- Each route has its own title, description, canonical, and social tags in `src/lib/routeMeta.js`. The production build writes `dist/photo/index.html`, `dist/video/index.html`, and `dist/about/index.html` from that table. After navigation, the client hook applies the same tags.
 
 ## What loads at boot
 
@@ -21,18 +20,17 @@ Metrotapes is a Vite and React app. The home page is a 3D subway station when We
 
 ## Content from Sanity
 
-The browser does not call the Sanity Content API. Photos, about, and posts come from same-origin routes:
+The browser does not call the Sanity Content API. Photos and about come from same-origin routes:
 
 | Route | Handler | Document |
 |---|---|---|
 | `/api/photos` | `api/photos.js` | `photos` (first document, `images`) |
 | `/api/about` | `api/about.js` | `about` |
-| `/api/posts` | `api/posts.js` | `post`, newest first |
 | `/api/videos` | `api/videos.js` | `videos` (`playlistId`), read on the server only |
 
 The queries live in `server/sanityContent.js`. Photo and about projections include alt text plus the asset's width and height, so the photo page can build a srcset that does not ask for a larger file than the original. Image URLs are built in the browser by `src/lib/sanity.js` from the public project id and dataset. The image bytes come from `cdn.sanity.io`.
 
-`vite.config.js` serves the same four routes on the dev server. You do not need `vercel dev` for them. A successful content response is cached at the CDN with `s-maxage=60, stale-while-revalidate=86400`.
+`vite.config.js` serves the same three content routes on the dev server. You do not need `vercel dev` for them. A successful content response is cached at the CDN with `s-maxage=60, stale-while-revalidate=86400`.
 
 The studio also defines `home`, `article`, `landingVideo`, and `mediaItem`. Nothing in `src/` or `server/` queries those.
 

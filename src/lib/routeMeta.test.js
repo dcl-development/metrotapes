@@ -25,10 +25,7 @@ test('applying a second route replaces the first', () => {
   assert.doesNotMatch(video, /photo · metrotapes/)
 })
 
-test('blog is noindex and about keeps its description', () => {
-  const blog = applyRouteMeta(html, '/blog')
-  assert.match(blog, /name="robots" content="noindex, nofollow"/)
-  assert.match(blog, /href="https:\/\/metrotapes\.com\/blog"/)
+test('about keeps its description', () => {
   const about = applyRouteMeta(html, '/about')
   assert.match(about, /<title>about · metrotapes<\/title>/)
   assert.match(about, /videographer in the New York metropolitan area/)

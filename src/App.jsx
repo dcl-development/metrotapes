@@ -10,7 +10,6 @@ import FlatHome from './components/FlatHome'
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import styled from 'styled-components'
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
-import Blog from './pages/Blog'
 import { font, station } from './styles/theme'
 import usePageMeta from './hooks/usePageMeta'
 import { KioskLeaveProvider } from './context/KioskLeaveContext'
@@ -160,7 +159,6 @@ function AppContent() {
   const { station, setContextLost } = usePresentation()
   const shotFromRoute = SHOT[location.pathname]
   const atKiosk = location.pathname === '/'
-  const onBlog = location.pathname === '/blog'
   const skipIntro = useMemo(
     () => typeof window !== 'undefined'
       && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
@@ -325,7 +323,7 @@ function AppContent() {
       <HeaderArea ref={headerRef}>
         <Header />
       </HeaderArea>
-      {(station && !onBlog && (shotFromRoute || arriving || entered)) ? (
+      {(station && (shotFromRoute || arriving || entered)) ? (
         <StationStage $header={headerH} $front={arriving} $hit={!arriving && (entered || !!shotFromRoute)}>
           <Suspense fallback={null}>
             <StationScene
@@ -359,7 +357,6 @@ function AppContent() {
           <Route path="/photo" element={station ? null : <PhotoPage />} />
           <Route path="/video" element={station ? null : <VideoPage />} />
           <Route path="/about" element={station ? null : <AboutPage />} />
-          <Route path="/blog" element={<Blog />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </ContentArea>

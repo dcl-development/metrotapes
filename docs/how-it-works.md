@@ -32,8 +32,6 @@ The queries live in `server/sanityContent.js`. Photo and about projections inclu
 
 `vite.config.js` serves the same three content routes on the dev server. You do not need `vercel dev` for them. A successful content response is cached at the CDN with `s-maxage=60, stale-while-revalidate=86400`.
 
-The studio also defines `home`, `article`, `landingVideo`, and `mediaItem`. Nothing in `src/` or `server/` queries those.
-
 The studio is a separate project in `studio/`. `npm run build` builds the site, then installs and builds the studio with `SANITY_STUDIO_BASEPATH=/studio`, so it ends up in `dist/studio`. `vercel.json` rewrites `/studio` to the studio's `index.html` and everything else that isn't `/api/`, `/assets/`, `robots.txt`, or `sitemap.xml` to the site's `index.html`.
 
 ## The videos endpoint

@@ -33,10 +33,12 @@ npm install --prefix studio
 npm run dev:studio
 ```
 
-Optional environment variables (copy `.env.example` to `.env.local`). They're read only by the `/api` functions, never by browser code:
+Optional environment variables (copy `.env.example` to `.env.local`):
 
-- `YOUTUBE_API_KEY` for the YouTube Data API. Without it the video list uses the playlist RSS feed.
+- `YOUTUBE_API_KEY` for the YouTube Data API. Without it the video list uses the playlist RSS feed. Server-only.
 - `SANITY_PROJECT_ID` and `SANITY_DATASET` to point the API at a different Sanity project. The defaults are the production ones (`l3itmzli` / `production`). The dataset is public, so no Sanity token is needed.
+- `VITE_SANITY_PROJECT_ID` and `VITE_SANITY_DATASET` optionally override the public project id and dataset used to build image URLs in the browser. Same defaults.
+- `SANITY_STUDIO_PROJECT_ID` and `SANITY_STUDIO_DATASET` optionally override those values for Studio. Same defaults.
 
 Don't add `VITE_` secrets. Anything with that prefix can end up in the public JS bundle, and the build fails if a secret-looking env value (name containing TOKEN, KEY, SECRET or PASSWORD) shows up in it.
 

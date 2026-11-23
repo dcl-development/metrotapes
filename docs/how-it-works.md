@@ -73,11 +73,11 @@ All optional. The Sanity defaults point at the production project.
 | `SANITY_PROJECT_ID`, `SANITY_DATASET` | Serverless functions. Default to the production project |
 | `YOUTUBE_API_KEY` | YouTube Data API for the playlist. Without it the RSS feed is used |
 
-All of these are server-only. API keys are used only inside the `/api` functions, and browser code reads no env vars. The dataset is public, so the site needs no Sanity token. `scripts/secretGuard.js` fails the build if a secret value ends up in the bundle.
+API keys are used only inside the `/api` functions. The public project id and dataset may also be read from `VITE_*` / `SANITY_STUDIO_*` vars, with production fallbacks. The dataset is public, so the site needs no Sanity token. `scripts/secretGuard.js` fails the build if a secret value ends up in the bundle.
 
 ## Limits worth knowing
 
 - **Without an API key the video list has no durations.** The RSS feed also carries no paging, so very long playlists are not guaranteed to show in full.
-- **The studio config has the project id and dataset written in** (`studio/sanity.config.js`, `studio/sanity.cli.cjs`, `src/lib/sanity.js` for image URLs), as does the API fallback, so pointing at another project means changing those too.
+- **Project id and dataset default to production** (`l3itmzli` / `production`) in the API, `src/lib/sanity.js`, and Studio config. Override with `SANITY_PROJECT_ID` / `SANITY_DATASET` (API), `VITE_SANITY_PROJECT_ID` / `VITE_SANITY_DATASET` (browser image URLs), or `SANITY_STUDIO_PROJECT_ID` / `SANITY_STUDIO_DATASET` (Studio).
 - **The home page does not warm wall images.** Photos, about, and videos load on their own routes.
 - **A publish can take about a minute to show up** on a warm CDN cache (`s-maxage=60` for Sanity content, `s-maxage=3600` for a non-empty video list).

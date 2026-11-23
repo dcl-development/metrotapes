@@ -33,12 +33,6 @@ export const ROUTE_META = {
       'Ronnie Foreman is a videographer in the New York metropolitan area. Skate, snow, and other visual work.',
     robots: 'index, follow',
   },
-  '/blog': {
-    path: '/blog',
-    title: 'metrotapes',
-    description: HOME_DESCRIPTION,
-    robots: 'noindex, nofollow',
-  },
 }
 
 export function normalizePath(pathname) {

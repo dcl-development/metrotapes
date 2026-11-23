@@ -1,6 +1,6 @@
 import {defineField, defineType} from 'sanity'
 
-/** Shared media object used by post / home / article */
+/** Shared media object used by home / article */
 export const mediaItem = defineType({
   name: 'mediaItem',
   title: 'Media Item',

@@ -16,8 +16,3 @@ export async function fetchAbout() {
   const data = await fetchJson('/api/about')
   return data.about || null
 }
-
-export async function fetchPosts() {
-  const data = await fetchJson('/api/posts')
-  return Array.isArray(data.posts) ? data.posts : []
-}

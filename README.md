@@ -1,14 +1,14 @@
 # Metrotapes
 
-The portfolio site for Metrotapes, built as an interactive subway station. The station is the navigation: the photo, video and about pages are camera shots inside a 3D scene rather than separate page layouts. Blog posts are ordinary pages.
+The portfolio site for Metrotapes, built as an interactive subway station. The station is the navigation: the photo, video and about pages are camera shots inside a 3D scene rather than separate page layouts.
 
 Live at [metrotapes.com](https://metrotapes.com).
 
 ## How it works
 
-- A boot screen leads into a kiosk in the station. Routes are `/`, `/photo`, `/video`, `/about` and `/blog`.
+- A boot screen leads into a kiosk in the station. Routes are `/`, `/photo`, `/video`, and `/about`.
 - The scene is built with React Three Fiber and Three.js, with post-processing and a few graphics quality tiers.
-- Photos, about text, and blog posts come from Sanity through same-origin endpoints: `/api/photos`, `/api/about`, and `/api/posts`. The public site does not call the Sanity API from the browser. Image files still load from `cdn.sanity.io`.
+- Photos and about text come from Sanity through same-origin endpoints: `/api/photos` and `/api/about`. The public site does not call the Sanity API from the browser. Image files still load from `cdn.sanity.io`.
 - Videos are read from a YouTube playlist through `/api/videos`, which falls back to the playlist's RSS feed when no API key is set. The playlist id is read from Sanity on the server.
 - The Sanity Studio lives in `studio/` and is built into the deployed site under `/studio`. Studio keeps its own connection to Sanity.
 - A longer walkthrough of routing, the station, and the API routes is in [docs/how-it-works.md](docs/how-it-works.md).
@@ -26,7 +26,7 @@ npm install
 npm run dev
 ```
 
-The site runs on the Vite dev server, which also serves `/api/videos`, `/api/photos`, `/api/about`, and `/api/posts`. You do not need `vercel dev` for those routes. (`npx vercel dev` works too, if you want the Vercel runtime locally.) To edit content locally, run the studio in a second terminal:
+The site runs on the Vite dev server, which also serves `/api/videos`, `/api/photos`, and `/api/about`. You do not need `vercel dev` for those routes. (`npx vercel dev` works too, if you want the Vercel runtime locally.) To edit content locally, run the studio in a second terminal:
 
 ```sh
 npm install --prefix studio

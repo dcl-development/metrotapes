@@ -4,7 +4,7 @@ Low-context jump-in for new agents. Read this, then open only the files your tas
 
 ## What this is
 
-Portfolio for **Metrotapes**. Live: [metrotapes.com](https://metrotapes.com). The site is an interactive subway station: **navigation is camera shots inside one 3D scene**, not separate page layouts. Blog is a normal HTML page. Content comes from Sanity.
+Portfolio for **Metrotapes**. Live: [metrotapes.com](https://metrotapes.com). The site is an interactive subway station: **navigation is camera shots inside one 3D scene**, not separate page layouts. Content comes from Sanity.
 
 **Stack:** Vite 8 + React 19 + React Router + styled-components + React Three Fiber / Three.js + Sanity + Vercel. **Not Next.js.** No Tailwind.
 
@@ -18,7 +18,6 @@ Portfolio for **Metrotapes**. Live: [metrotapes.com](https://metrotapes.com). Th
 | `/photo` | `photo` | Photo wall (Sanity) |
 | `/video` | `video` | Video wall (YouTube via API) |
 | `/about` | `about` | About wall (Sanity) |
-| `/blog` | — | Normal page (`src/pages/Blog.jsx`); **no** station scene |
 
 - Routing, boot, header height, route → shot (`SHOT`): `src/App.jsx`
 - 3D station, camera, walls, train: `src/components/StationScene.jsx`, with pieces in `src/station/` (camera POVs `POVS` in `src/station/space.js`)
@@ -31,7 +30,7 @@ Portfolio for **Metrotapes**. Live: [metrotapes.com](https://metrotapes.com). Th
 
 ## Content ownership
 
-- **Sanity** owns photos, about copy, blog posts, video playlist id, home bits. Studio app: `studio/` (served at `/studio`), schemas in `studio/schemaTypes/`.
+- **Sanity** owns photos, about copy, video playlist id, home bits. Studio app: `studio/` (served at `/studio`), schemas in `studio/schemaTypes/`.
 - **Code** owns station geometry, camera shots, boot/kiosk UX, gfx tiers, theme tokens.
 - **YouTube** owns the video list. `/api/videos` falls back to playlist RSS if `YOUTUBE_API_KEY` is unset.
 - Don't hardcode CMS copy when a schema exists. Secrets stay server-side: API keys are used only in `/api` functions, browser code reads no env vars, and nothing secret goes in `VITE_*`. The build fails if a secret value ends up in the bundle.
@@ -56,4 +55,4 @@ Optional `.env.local` (see `.env.example`): `YOUTUBE_API_KEY`, `SANITY_PROJECT_I
 
 ## Verify
 
-`/` boots then kiosk navigates to walls; `/photo` `/video` `/about` land on the wall and become interactive after arrive; `/blog` scrolls with the station unmounted; mobile resize keeps header and framing (gfx can drop tiers, never promote mid-session); reduced motion has no intro.
+`/` boots then kiosk navigates to walls; `/photo` `/video` `/about` land on the wall and become interactive after arrive; mobile resize keeps header and framing (gfx can drop tiers, never promote mid-session); reduced motion has no intro.

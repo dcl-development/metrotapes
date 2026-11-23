@@ -2,13 +2,13 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react-swc'
-import { runAbout, runPhotos, runPosts } from './server/sanityRoutes.js'
+import { runAbout, runPhotos } from './server/sanityRoutes.js'
 import { allowVideosRequest } from './server/videosGuard.js'
 import { getPlaylistConfig, loadPlaylistVideos } from './server/youtubePlaylist.js'
 import { applyRouteMeta } from './src/lib/routeMeta.js'
 import { secretGuardPlugin } from './scripts/secretGuard.js'
 
-const ROUTE_HTML = ['/photo', '/video', '/about', '/blog']
+const ROUTE_HTML = ['/photo', '/video', '/about']
 
 function routeHtmlPlugin() {
   return {
@@ -92,7 +92,6 @@ function videosApiPlugin(env) {
       })
       attachJsonRoute(server, '/api/photos', runPhotos, env)
       attachJsonRoute(server, '/api/about', runAbout, env)
-      attachJsonRoute(server, '/api/posts', runPosts, env)
     },
   }
 }

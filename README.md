@@ -4,6 +4,18 @@ The portfolio site for Metrotapes, built as an interactive subway station. The s
 
 Live at [metrotapes.com](https://metrotapes.com).
 
+![The kiosk in the station: PHOTO, VIDEO and ABOUT buttons under a MetroCard-style screen](docs/img/kiosk.jpg)
+
+| Photo wall | Video wall | About wall |
+|---|---|---|
+| ![Photo wall: a framed photo above a film strip](docs/img/photo.jpg) | ![Video wall: player and queue](docs/img/video.jpg) | ![About wall](docs/img/about.jpg) |
+
+On a phone the camera frames the kiosk portrait, and the walls fill the screen:
+
+| Kiosk | Photo wall |
+|---|---|
+| <img src="docs/img/phone-kiosk.jpg" width="260" alt="Kiosk on a phone"> | <img src="docs/img/phone-photo.jpg" width="260" alt="Photo wall on a phone"> |
+
 ## How it works
 
 - A boot screen leads into a kiosk in the station. Routes are `/`, `/photo`, `/video`, and `/about`.
@@ -12,6 +24,13 @@ Live at [metrotapes.com](https://metrotapes.com).
 - Videos are read from a YouTube playlist through `/api/videos`, which falls back to the playlist's RSS feed when no API key is set. The playlist id is read from Sanity on the server.
 - The Sanity Studio lives in `studio/` and is built into the deployed site under `/studio`. Studio keeps its own connection to Sanity.
 - A longer walkthrough of routing, the station, and the API routes is in [docs/how-it-works.md](docs/how-it-works.md).
+
+## How this was made
+
+- **No 3D model files.** There is no Blender, `.glb` or `.obj` in the repo. The platform, pillars, stairs, train and kiosk are Three.js primitives assembled in code, and the tile, grime, concrete and steel textures are painted onto 2D canvases at load time (`src/station/textures.js`). The scene is small to download, and every dimension is a named constant in `src/station/space.js`.
+- **The wall pages are real HTML in 3D space.** Photo, video and about are normal React pages positioned on the walls with CSS 3D (`src/station/css3d.js`), so they stay sharp and accessible. See [docs/station-map.md](docs/station-map.md) for which file builds which part of the station.
+- **Built with AI coding agents.** The code was written with AI agents working from design direction, with a human deciding what the site is, how it looks and what goes on it. `AGENTS.md` is the onboarding file for them.
+- **It degrades on purpose.** Quality tiers drop on weak GPUs and never go back up mid-session. If WebGL is missing or the context is lost, the same pages render flat.
 
 ## Stack
 
